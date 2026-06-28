@@ -1,0 +1,36 @@
+name: Build macOS Plugin
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          find build -name "*.vst3" -exec cp -R {} dist/ \;
+          find build -name "*.component" -exec cp -R {} dist/ \;
+          find build -name "*.app" -exec cp -R {} dist/ \;
+          ls -la dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoriMix-mac
+          path: dist/
