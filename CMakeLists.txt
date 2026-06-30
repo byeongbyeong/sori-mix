@@ -37,6 +37,8 @@ target_sources(SoriMix PRIVATE
     Source/PluginEditor.h
     Source/PluginProcessor.cpp
     Source/PluginProcessor.h
+    Source/SecureCredentialStore.h
+    Source/SecureCredentialStore.cpp
 )
 
 target_compile_definitions(SoriMix
@@ -66,3 +68,10 @@ target_link_libraries(SoriMix
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
 )
+
+if(APPLE)
+    target_sources(SoriMix PRIVATE Source/SecureCredentialStore_mac.mm)
+    target_link_libraries(SoriMix PRIVATE "-framework Security")
+else()
+    target_sources(SoriMix PRIVATE Source/SecureCredentialStore_fallback.cpp)
+endif()

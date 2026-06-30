@@ -49,6 +49,33 @@ SoriMixAudioProcessorEditor::SoriMixAudioProcessorEditor(SoriMixAudioProcessor& 
     applyButton.onClick = [this] { runAssistantCommand(promptBox.getText()); };
     addAndMakeVisible(applyButton);
 
+    providerBox.addItem("OpenAI", 1);
+    providerBox.addItem("Groq", 2);
+    providerBox.setSelectedId(1, juce::dontSendNotification);
+    providerBox.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff0d1112));
+    providerBox.setColour(juce::ComboBox::textColourId, textColour());
+    providerBox.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff2b3839));
+    providerBox.onChange = [this] { refreshCredentialStatus(); };
+    addAndMakeVisible(providerBox);
+
+    apiKeyBox.setMultiLine(false);
+    apiKeyBox.setPasswordCharacter(0x2022);
+    apiKeyBox.setTextToShowWhenEmpty("API key", juce::Colour(0xff7f8c86));
+    apiKeyBox.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff0d1112));
+    apiKeyBox.setColour(juce::TextEditor::textColourId, textColour());
+    apiKeyBox.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff2b3839));
+    addAndMakeVisible(apiKeyBox);
+
+    saveKeyButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff355746));
+    saveKeyButton.setColour(juce::TextButton::textColourOffId, textColour());
+    saveKeyButton.onClick = [this] { saveApiKey(); };
+    addAndMakeVisible(saveKeyButton);
+
+    deleteKeyButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff463033));
+    deleteKeyButton.setColour(juce::TextButton::textColourOffId, textColour());
+    deleteKeyButton.onClick = [this] { deleteApiKey(); };
+    addAndMakeVisible(deleteKeyButton);
+
     for (size_t i = 0; i < quickButtons.size(); ++i)
     {
         quickButtons[i].setButtonText(quickCommandLabels[i]);
@@ -68,6 +95,11 @@ SoriMixAudioProcessorEditor::SoriMixAudioProcessorEditor(SoriMixAudioProcessor& 
     statusLabel.setColour(juce::Label::textColourId, juce::Colour(0xff9fb4ac));
     statusLabel.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(statusLabel);
+
+    credentialLabel.setColour(juce::Label::textColourId, juce::Colour(0xff9fb4ac));
+    credentialLabel.setJustificationType(juce::Justification::centredLeft);
+    addAndMakeVisible(credentialLabel);
+    refreshCredentialStatus();
 
     inputMeterLabel.setText("IN", juce::dontSendNotification);
     outputMeterLabel.setText("OUT", juce::dontSendNotification);
@@ -137,10 +169,18 @@ void SoriMixAudioProcessorEditor::resized()
     auto area = getLocalBounds().reduced(margin + 18);
     area.removeFromTop(82);
 
-    auto promptArea = area.removeFromBottom(112);
+    auto promptArea = area.removeFromBottom(158);
     auto statusArea = promptArea.removeFromBottom(26);
     statusLabel.setBounds(statusArea);
 
+    auto credentialRow = promptArea.removeFromBottom(36);
+    deleteKeyButton.setBounds(credentialRow.removeFromRight(82).reduced(3, 3));
+    saveKeyButton.setBounds(credentialRow.removeFromRight(102).reduced(3, 3));
+    apiKeyBox.setBounds(credentialRow.removeFromRight(240).reduced(3, 3));
+    providerBox.setBounds(credentialRow.removeFromLeft(112).reduced(3, 3));
+    credentialLabel.setBounds(credentialRow.reduced(8, 0));
+
+    promptArea.removeFromBottom(8);
     auto commandRow = promptArea.removeFromTop(38);
     applyButton.setBounds(commandRow.removeFromRight(92));
     commandRow.removeFromRight(10);
@@ -181,6 +221,45 @@ void SoriMixAudioProcessorEditor::runAssistantCommand(const juce::String& comman
     audioProcessor.applyAssistantCommand(trimmed);
     statusLabel.setText("Applied: " + trimmed, juce::dontSendNotification);
     promptBox.clear();
+}
+
+void SoriMixAudioProcessorEditor::saveApiKey()
+{
+    juce::String message;
+    const auto provider = providerBox.getText();
+    const auto result = SecureCredentialStore::instance().saveApiKey(provider, apiKeyBox.getText(), message);
+
+    apiKeyBox.clear();
+    statusLabel.setText(message, juce::dontSendNotification);
+    refreshCredentialStatus();
+
+    if (result != SecureCredentialStore::Result::ok)
+        juce::NativeMessageBox::showMessageBoxAsync(juce::AlertWindow::WarningIcon, "SoriMix", message);
+}
+
+void SoriMixAudioProcessorEditor::deleteApiKey()
+{
+    juce::String message;
+    const auto result = SecureCredentialStore::instance().deleteApiKey(providerBox.getText(), message);
+
+    statusLabel.setText(message, juce::dontSendNotification);
+    refreshCredentialStatus();
+
+    if (result != SecureCredentialStore::Result::ok)
+        juce::NativeMessageBox::showMessageBoxAsync(juce::AlertWindow::WarningIcon, "SoriMix", message);
+}
+
+void SoriMixAudioProcessorEditor::refreshCredentialStatus()
+{
+    const auto provider = providerBox.getText();
+    const auto result = SecureCredentialStore::instance().loadApiKey(provider);
+
+    if (result.result == SecureCredentialStore::Result::ok)
+        credentialLabel.setText(provider + " key saved in Keychain", juce::dontSendNotification);
+    else if (result.result == SecureCredentialStore::Result::notFound)
+        credentialLabel.setText(provider + " key not saved", juce::dontSendNotification);
+    else
+        credentialLabel.setText("Secure key storage unavailable", juce::dontSendNotification);
 }
 
 void SoriMixAudioProcessorEditor::timerCallback()

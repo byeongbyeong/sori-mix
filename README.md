@@ -8,6 +8,7 @@ This project starts from the broad idea of a prompt-driven mix assistant, but it
 - AudioProcessorValueTreeState parameters
 - simple musical controls for tone, compression, width, and output
 - command presets that can later be replaced by a secure AI service layer
+- API keys stored in macOS Keychain, not plaintext project files
 - CMake-based local and GitHub Actions builds
 
 ## Build
@@ -22,7 +23,7 @@ The first configure downloads JUCE 8.0.4 through CMake FetchContent.
 ## Roadmap
 
 - Add a secure AI provider abstraction.
-- Store API credentials in the OS keychain instead of plaintext files.
+- Add provider-specific AI requests using the secure credential store.
 - Add a spectrum/meter panel.
 - Add preset import/export.
 - Add notarized release packaging.
