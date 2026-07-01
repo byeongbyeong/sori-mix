@@ -1,13 +1,18 @@
 :root {
-  color-scheme: dark;
-  --bg: #0e1214;
-  --panel: #182022;
-  --panel-2: #111719;
-  --text: #edf5f0;
-  --muted: #9fb3aa;
-  --line: #2b3839;
-  --accent: #5ed6a0;
-  --blue: #74a7ff;
+  color-scheme: light;
+  --cream: #fff8ef;
+  --surface: #fffdf8;
+  --surface-warm: #fff1e4;
+  --ink: #302622;
+  --muted: #7d685f;
+  --line: #ead8cb;
+  --peach: #ffad93;
+  --apricot: #ffd49f;
+  --blush: #f8c7d3;
+  --sage: #d4e7c6;
+  --sky: #c8ddff;
+  --lavender: #d9ccff;
+  --shadow: rgba(98, 61, 43, 0.16);
 }
 
 * {
@@ -20,8 +25,8 @@ html {
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--cream);
+  color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -33,32 +38,49 @@ a {
 .site-header {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 68px;
+  min-height: 72px;
   padding: 0 clamp(20px, 5vw, 72px);
-  border-bottom: 1px solid rgba(94, 214, 160, 0.16);
-  background: rgba(14, 18, 20, 0.9);
-  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(234, 216, 203, 0.78);
+  background: rgba(255, 248, 239, 0.84);
+  backdrop-filter: blur(22px);
 }
 
 .brand {
-  font-size: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.02rem;
   font-weight: 800;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(48, 38, 34, 0.1);
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--peach), var(--apricot));
+  font-size: 0.78rem;
+  letter-spacing: 0;
+  box-shadow: 0 10px 26px rgba(255, 173, 147, 0.34);
 }
 
 nav {
   display: flex;
   align-items: center;
-  gap: clamp(14px, 2vw, 26px);
+  gap: clamp(14px, 2vw, 28px);
   color: var(--muted);
-  font-size: 0.95rem;
+  font-size: 0.94rem;
 }
 
 nav a:hover {
-  color: var(--text);
+  color: var(--ink);
 }
 
 .nav-button,
@@ -67,21 +89,22 @@ nav a:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 18px;
   border-radius: 8px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .nav-button,
 .secondary-action {
   border: 1px solid var(--line);
-  color: var(--text);
+  background: rgba(255, 253, 248, 0.68);
 }
 
 .primary-action {
-  background: var(--accent);
-  color: #06100c;
+  background: var(--ink);
+  color: var(--surface);
+  box-shadow: 0 16px 42px rgba(48, 38, 34, 0.22);
 }
 
 main {
@@ -89,23 +112,59 @@ main {
 }
 
 .hero {
-  min-height: calc(100vh - 68px);
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(420px, 1.15fr);
-  align-items: center;
-  gap: clamp(28px, 5vw, 80px);
-  padding: clamp(44px, 7vw, 92px) clamp(20px, 5vw, 72px) 72px;
+  position: relative;
+  min-height: min(700px, calc(100svh - 96px));
+  display: flex;
+  align-items: flex-end;
+  padding: clamp(96px, 12vw, 150px) clamp(20px, 5vw, 72px) clamp(54px, 7vw, 84px);
+  isolation: isolate;
 }
 
-.hero-copy {
-  max-width: 620px;
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  background:
+    linear-gradient(90deg, rgba(255, 248, 239, 0.98) 0%, rgba(255, 248, 239, 0.86) 38%, rgba(255, 248, 239, 0.1) 75%),
+    linear-gradient(180deg, rgba(255, 248, 239, 0.35) 0%, rgba(255, 248, 239, 0.88) 100%),
+    url("assets/sorimix-plugin-mockup.png") right 45% center / min(72vw, 960px) auto no-repeat;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  right: clamp(20px, 5vw, 72px);
+  bottom: 32px;
+  width: min(58vw, 740px);
+  height: 46%;
+  z-index: -2;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 173, 147, 0.22), rgba(200, 221, 255, 0.24));
+  filter: blur(50px);
+}
+
+.hero-media {
+  position: absolute;
+  right: clamp(20px, 5vw, 72px);
+  bottom: clamp(54px, 8vw, 92px);
+  width: min(48vw, 620px);
+  aspect-ratio: 16 / 10;
+  border: 1px solid rgba(234, 216, 203, 0.88);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.14);
+  box-shadow: 0 28px 90px var(--shadow);
+}
+
+.hero-content {
+  width: min(760px, 100%);
 }
 
 .eyebrow {
   margin: 0 0 14px;
-  color: var(--accent);
+  color: #b66b54;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -119,115 +178,188 @@ p {
 
 h1 {
   margin-bottom: 18px;
-  font-size: clamp(4.8rem, 12vw, 9.5rem);
-  line-height: 0.88;
+  max-width: 820px;
+  font-size: clamp(5.6rem, 13vw, 12rem);
+  line-height: 0.82;
   letter-spacing: 0;
 }
 
 h2 {
-  margin-bottom: 14px;
-  font-size: clamp(2rem, 4vw, 4rem);
-  line-height: 1;
+  margin-bottom: 18px;
+  max-width: 900px;
+  font-size: clamp(2.3rem, 5.6vw, 5.7rem);
+  line-height: 0.95;
   letter-spacing: 0;
 }
 
 h3 {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   font-size: 1.15rem;
 }
 
 .lead {
-  max-width: 560px;
+  max-width: 620px;
   color: var(--muted);
-  font-size: clamp(1.08rem, 2vw, 1.35rem);
-  line-height: 1.58;
-}
-
-.hero-actions,
-.build-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 28px;
-}
-
-.product-shot {
-  margin: 0;
-}
-
-.product-shot img {
-  display: block;
-  width: min(100%, 820px);
-  height: auto;
-  border: 1px solid rgba(94, 214, 160, 0.22);
-  border-radius: 8px;
-  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.42);
-}
-
-.section {
-  padding: clamp(70px, 9vw, 120px) clamp(20px, 5vw, 72px);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.section-heading {
-  max-width: 760px;
-  margin-bottom: 34px;
-}
-
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.feature-grid article {
-  min-height: 190px;
-  padding: 24px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-}
-
-.feature-grid p,
-.build-section p,
-.roadmap {
-  color: var(--muted);
+  font-size: clamp(1.08rem, 2vw, 1.36rem);
   line-height: 1.62;
 }
 
-.build-section {
+.hero-actions,
+.download-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.section {
+  padding: clamp(74px, 10vw, 132px) clamp(20px, 5vw, 72px);
+  border-top: 1px solid rgba(234, 216, 203, 0.78);
+}
+
+.section-heading {
+  max-width: 980px;
+  margin-bottom: 38px;
+}
+
+.section-heading p,
+.assistant-copy p,
+.download-section p {
+  color: var(--muted);
+  line-height: 1.68;
+  font-size: 1.04rem;
+}
+
+.chain-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.chain-grid article {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 18px 45px rgba(98, 61, 43, 0.08);
+}
+
+.chain-grid article:nth-child(1) { background: #fff0ea; }
+.chain-grid article:nth-child(2) { background: #fff5df; }
+.chain-grid article:nth-child(3) { background: #fff0f4; }
+.chain-grid article:nth-child(4) { background: #f4faef; }
+.chain-grid article:nth-child(5) { background: #fff1e7; }
+.chain-grid article:nth-child(6) { background: #eef5ff; }
+
+.chain-grid span {
+  color: rgba(48, 38, 34, 0.38);
+  font-weight: 900;
+}
+
+.chain-grid p {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.assistant-section {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(340px, 0.72fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  background: linear-gradient(180deg, #fff8ef 0%, #fff2e7 100%);
+}
+
+.assistant-panel {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.8);
+  box-shadow: 0 22px 70px rgba(98, 61, 43, 0.12);
+}
+
+.prompt-line {
+  padding: 18px;
+  border-radius: 8px;
+  background: #fff0ea;
+}
+
+.prompt-line span {
+  display: inline-flex;
+  margin-bottom: 10px;
+  color: #b66b54;
+  font-weight: 900;
+}
+
+.prompt-line p {
+  margin-bottom: 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.result-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.result-stack div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.result-stack span {
+  color: var(--muted);
+}
+
+.download-section {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
   gap: 32px;
-  background: var(--panel-2);
+  align-items: center;
 }
 
-.build-section p {
+.download-section p {
   max-width: 760px;
   margin-bottom: 0;
-  font-size: 1.05rem;
-}
-
-.roadmap {
-  display: grid;
-  gap: 14px;
-  max-width: 920px;
-  margin: 0;
-  padding-left: 24px;
-  font-size: 1.05rem;
 }
 
 footer {
   display: flex;
   justify-content: space-between;
   gap: 24px;
-  padding: 32px clamp(20px, 5vw, 72px);
+  padding: 34px clamp(20px, 5vw, 72px);
   color: var(--muted);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--line);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1080px) {
+  .chain-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hero::before {
+    background:
+      linear-gradient(90deg, rgba(255, 248, 239, 0.98) 0%, rgba(255, 248, 239, 0.9) 45%, rgba(255, 248, 239, 0.35) 100%),
+      linear-gradient(180deg, rgba(255, 248, 239, 0.2) 0%, rgba(255, 248, 239, 0.9) 100%),
+      url("assets/sorimix-plugin-mockup.png") right 20% center / 820px auto no-repeat;
+  }
+
+  .hero-media {
+    opacity: 0.55;
+  }
+}
+
+@media (max-width: 820px) {
   .site-header {
     position: static;
     align-items: flex-start;
@@ -244,28 +376,45 @@ footer {
   }
 
   .hero {
-    min-height: auto;
-    grid-template-columns: 1fr;
-    padding-top: 46px;
+    min-height: 660px;
+    align-items: flex-start;
+    padding-top: 72px;
   }
 
-  .feature-grid,
-  .build-section {
-    grid-template-columns: 1fr;
+  .hero::before {
+    background:
+      linear-gradient(180deg, rgba(255, 248, 239, 0.98) 0%, rgba(255, 248, 239, 0.86) 44%, rgba(255, 248, 239, 0.26) 100%),
+      url("assets/sorimix-plugin-mockup.png") center bottom 46px / 650px auto no-repeat;
   }
 
-  .product-shot img {
-    width: 100%;
+  .hero-media {
+    left: 20px;
+    right: 20px;
+    bottom: 64px;
+    width: auto;
+  }
+
+  .assistant-section,
+  .download-section {
+    grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 620px) {
   h1 {
-    font-size: clamp(4rem, 22vw, 6.2rem);
+    font-size: clamp(4.5rem, 24vw, 7rem);
+  }
+
+  h2 {
+    font-size: clamp(2.2rem, 13vw, 3.8rem);
+  }
+
+  .chain-grid {
+    grid-template-columns: 1fr;
   }
 
   .hero-actions,
-  .build-actions {
+  .download-actions {
     flex-direction: column;
   }
 
@@ -274,10 +423,7 @@ footer {
     width: 100%;
   }
 
-  .feature-grid article {
-    min-height: 0;
-  }
-
+  .result-stack div,
   footer {
     flex-direction: column;
   }
