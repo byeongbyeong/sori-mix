@@ -18,6 +18,7 @@
       <span>Sori LAB</span>
     </a>
     <nav aria-label="Primary navigation">
+      <a href="#preview">Preview</a>
       <a href="#chain">Chain</a>
       <a href="#assistant">AI</a>
       <a href="#downloads">Downloads</a>
@@ -27,7 +28,34 @@
 
   <main id="top">
     <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-media" aria-hidden="true"></div>
+      <div class="hero-media" aria-hidden="true">
+        <div class="plugin-preview compact">
+          <div class="plugin-topbar">
+            <span>Sori 1</span>
+            <button>Before</button>
+          </div>
+          <div class="plugin-tabs">
+            <span>DeEss</span>
+            <span>Res EQ</span>
+            <span class="active">Comp</span>
+            <span>EQ</span>
+            <span>Sat</span>
+            <span>Inflate</span>
+          </div>
+          <div class="plugin-main">
+            <div class="plugin-meters">
+              <div><span>IN</span><i style="--level: 72%"></i></div>
+              <div><span>OUT</span><i style="--level: 66%"></i></div>
+              <div><span>GR</span><i style="--level: 38%"></i></div>
+            </div>
+            <div class="plugin-controls">
+              <div class="knob"><i></i><span>Leveling</span></div>
+              <div class="knob"><i></i><span>Makeup</span></div>
+              <div class="assistant-strip">Make this vocal sit forward, but keep it natural.</div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="hero-content">
         <p class="eyebrow">Sori LAB presents</p>
         <h1 id="hero-title">Sori 1</h1>
@@ -35,6 +63,64 @@
         <div class="hero-actions">
           <a class="primary-action" href="#downloads">Download test build</a>
           <a class="secondary-action" href="#chain">Explore the chain</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="preview" class="section preview-section">
+      <div class="section-heading">
+        <p class="eyebrow">Product preview</p>
+        <h2>A vocal chain interface that stays readable while you work.</h2>
+        <p>The Sori 1 UI is organized by role. Pick a stage, monitor input/output/gain reduction, compare before and after, then ask the assistant for a focused adjustment.</p>
+      </div>
+      <div class="preview-layout">
+        <div class="plugin-preview large" aria-label="Sori 1 product interface preview">
+          <div class="plugin-topbar">
+            <span>Sori 1</span>
+            <button>Before</button>
+          </div>
+          <div class="plugin-tabs">
+            <span>DeEss</span>
+            <span>Res EQ</span>
+            <span class="active">Comp</span>
+            <span>EQ</span>
+            <span>Sat</span>
+            <span>Inflate</span>
+          </div>
+          <div class="plugin-main">
+            <div class="plugin-meters">
+              <div><span>IN</span><i style="--level: 72%"></i></div>
+              <div><span>OUT</span><i style="--level: 66%"></i></div>
+              <div><span>GR</span><i style="--level: 38%"></i></div>
+            </div>
+            <div class="plugin-controls">
+              <div class="knob"><i></i><span>Leveling</span></div>
+              <div class="knob"><i></i><span>Makeup</span></div>
+              <div class="assistant-strip">Make this vocal sit forward, but keep it natural.</div>
+            </div>
+          </div>
+          <div class="plugin-chain">
+            <span>DeEss</span>
+            <span>Res EQ</span>
+            <span>Comp</span>
+            <span>EQ</span>
+            <span>Sat</span>
+            <span>Inflate</span>
+          </div>
+        </div>
+        <div class="preview-notes">
+          <article>
+            <strong>Stage-first controls</strong>
+            <p>Labels change with the selected role, so the same surface feels specific instead of generic.</p>
+          </article>
+          <article>
+            <strong>Monitoring in view</strong>
+            <p>Input, output, and gain reduction stay visible for quick decisions while adjusting the chain.</p>
+          </article>
+          <article>
+            <strong>Fast comparison</strong>
+            <p>The Before button gives a smooth whole-chain comparison without interrupting playback.</p>
+          </article>
         </div>
       </div>
     </section>
