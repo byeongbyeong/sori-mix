@@ -11,15 +11,81 @@ constexpr auto compAmountID = "compAmount";
 constexpr auto widthID = "width";
 constexpr auto outputGainID = "outputGain";
 constexpr auto mixID = "mix";
+constexpr auto compareBeforeID = "compareBefore";
 
-float dbToLinear(float db)
-{
-    return juce::Decibels::decibelsToGain(db);
-}
+constexpr std::array<const char*, VocalChain::stageCount> stageEnabledIDs {{
+    "deEsserEnabled",
+    "resonanceEqEnabled",
+    "compressorEnabled",
+    "musicalEqEnabled",
+    "saturationEnabled",
+    "inflatorEnabled",
+}};
+
+constexpr std::array<const char*, VocalChain::stageCount> stageSlotIDs {{
+    "stageSlot1",
+    "stageSlot2",
+    "stageSlot3",
+    "stageSlot4",
+    "stageSlot5",
+    "stageSlot6",
+}};
 
 float levelToDb(float value)
 {
     return juce::Decibels::gainToDecibels(juce::jmax(value, 0.00003f));
+}
+
+juce::ParameterID parameterID(const char* id, int versionHint)
+{
+    return { id, versionHint };
+}
+
+bool shouldProcessSmoothedWet(const juce::SmoothedValue<float>& wet)
+{
+    return wet.isSmoothing()
+        || wet.getCurrentValue() > 0.0001f
+        || wet.getTargetValue() > 0.0001f;
+}
+
+void copyBuffer(juce::AudioBuffer<float>& destination, const juce::AudioBuffer<float>& source)
+{
+    destination.setSize(source.getNumChannels(), source.getNumSamples(), false, false, true);
+    for (int channel = 0; channel < source.getNumChannels(); ++channel)
+        destination.copyFrom(channel, 0, source, channel, 0, source.getNumSamples());
+}
+
+void blendFromDryBuffer(juce::AudioBuffer<float>& wetBuffer,
+                        const juce::AudioBuffer<float>& dryBufferToBlend,
+                        juce::SmoothedValue<float>& wetAmount)
+{
+    if (! wetAmount.isSmoothing() && juce::approximatelyEqual(wetAmount.getCurrentValue(), 1.0f))
+        return;
+
+    for (int sample = 0; sample < wetBuffer.getNumSamples(); ++sample)
+    {
+        const auto wetMix = wetAmount.getNextValue();
+        for (int channel = 0; channel < wetBuffer.getNumChannels(); ++channel)
+        {
+            auto* wet = wetBuffer.getWritePointer(channel);
+            const auto* dry = dryBufferToBlend.getReadPointer(channel);
+            wet[sample] = dry[sample] + (wet[sample] - dry[sample]) * wetMix;
+        }
+    }
+}
+
+size_t stageIndex(VocalStage stage)
+{
+    return static_cast<size_t>(stage);
+}
+
+bool ordersEqual(const ChainEngine::Order& first, const ChainEngine::Order& second)
+{
+    for (size_t i = 0; i < first.size(); ++i)
+        if (first[i] != second[i])
+            return false;
+
+    return true;
 }
 }
 
@@ -35,22 +101,39 @@ juce::AudioProcessorValueTreeState::ParameterLayout SoriMixAudioProcessor::creat
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(lowGainID, "Low Gain",
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(lowGainID, 1), "Low Gain",
         juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(midGainID, "Mid Gain",
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(midGainID, 2), "Mid Gain",
         juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(midFreqID, "Mid Focus",
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(midFreqID, 3), "Mid Focus",
         juce::NormalisableRange<float>(250.0f, 4500.0f, 1.0f, 0.45f), 900.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(highGainID, "High Gain",
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(highGainID, 4), "High Gain",
         juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(compAmountID, "Glue",
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(compAmountID, 5), "Glue",
         juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.15f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(widthID, "Width",
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(widthID, 6), "Width",
         juce::NormalisableRange<float>(0.0f, 2.0f, 0.01f), 1.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(outputGainID, "Output",
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(outputGainID, 7), "Output",
         juce::NormalisableRange<float>(-24.0f, 12.0f, 0.1f), 0.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(mixID, "Mix",
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(mixID, 8), "Mix",
         juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 1.0f));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(parameterID(compareBeforeID, 9), "Compare Before", false));
+
+    int versionHint = 10;
+    for (size_t i = 0; i < VocalChain::stageCount; ++i)
+    {
+        const auto& stage = VocalChain::stageInfo(i);
+        params.push_back(std::make_unique<juce::AudioParameterBool>(
+            parameterID(stageEnabledIDs[i], versionHint++), juce::String(stage.displayName) + " Enabled", true));
+    }
+
+    const auto stageChoices = ChainEngine::getStageChoices();
+    for (size_t i = 0; i < VocalChain::stageCount; ++i)
+    {
+        params.push_back(std::make_unique<juce::AudioParameterChoice>(
+            parameterID(stageSlotIDs[i], versionHint++), "Chain Slot " + juce::String(static_cast<int>(i + 1)),
+            stageChoices, static_cast<int>(i)));
+    }
 
     return { params.begin(), params.end() };
 }
@@ -64,15 +147,51 @@ void SoriMixAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     spec.maximumBlockSize = static_cast<juce::uint32>(samplesPerBlock);
     spec.numChannels = static_cast<juce::uint32>(getTotalNumOutputChannels());
 
-    toneChain.prepare(spec);
+    toneModule.prepare(spec);
+    toneModule.updateImmediate(currentSampleRate,
+                               readParameter(parameters, lowGainID),
+                               readParameter(parameters, midGainID),
+                               readParameter(parameters, midFreqID),
+                               readParameter(parameters, highGainID));
+    resonanceEqModule.prepare(spec);
+    resonanceEqModule.update(currentSampleRate,
+                             juce::jmin(0.0f, readParameter(parameters, midGainID)),
+                             readParameter(parameters, midFreqID));
+    deEsserModule.prepare(sampleRate, getTotalNumOutputChannels());
+    deEsserModule.setAmountImmediate(juce::jlimit(0.0f, 1.0f, readParameter(parameters, highGainID) / 12.0f));
+    glueModule.prepare(sampleRate);
+    glueModule.setAmountImmediate(readParameter(parameters, compAmountID));
+    saturationModule.prepare(sampleRate);
+    saturationModule.setAmountImmediate(juce::jlimit(0.0f, 1.0f, readParameter(parameters, mixID)));
+    widthModule.prepare(sampleRate);
+    widthModule.setWidthImmediate(readParameter(parameters, widthID));
     outputGain.prepare(spec);
     outputGain.setRampDurationSeconds(0.02);
-    compressorEnvelope = 0.0f;
-    updateFilters();
+
+    for (size_t i = 0; i < stageWetSmoothed.size(); ++i)
+    {
+        stageWetSmoothed[i].reset(sampleRate, 0.012);
+        stageWetSmoothed[i].setCurrentAndTargetValue(readParameter(parameters, stageEnabledIDs[i]) > 0.5f ? 1.0f : 0.0f);
+    }
+
+    mixSmoothed.reset(sampleRate, 0.02);
+    mixSmoothed.setCurrentAndTargetValue(readParameter(parameters, mixID));
+    compareWetSmoothed.reset(sampleRate, 0.012);
+    compareWetSmoothed.setCurrentAndTargetValue(readParameter(parameters, compareBeforeID) > 0.5f ? 0.0f : 1.0f);
+    chainTransitionGain.reset(sampleRate, 0.012);
+    chainTransitionGain.setCurrentAndTargetValue(1.0f);
+    activeStageOrder = readStageOrder();
+    pendingStageOrder = activeStageOrder;
+    chainTransitionState = ChainTransitionState::stable;
+
+    dryBuffer.setSize(getTotalNumOutputChannels(), samplesPerBlock, false, false, true);
+    moduleDryBuffer.setSize(getTotalNumOutputChannels(), samplesPerBlock, false, false, true);
 }
 
 void SoriMixAudioProcessor::releaseResources()
 {
+    dryBuffer.setSize(0, 0);
+    moduleDryBuffer.setSize(0, 0);
 }
 
 bool SoriMixAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -97,30 +216,22 @@ float SoriMixAudioProcessor::readParameter(const juce::AudioProcessorValueTreeSt
     return 0.0f;
 }
 
+ChainEngine::Order SoriMixAudioProcessor::readStageOrder() const
+{
+    std::array<int, VocalChain::stageCount> slots {};
+    for (size_t i = 0; i < slots.size(); ++i)
+        slots[i] = static_cast<int>(readParameter(parameters, stageSlotIDs[i]));
+
+    return ChainEngine::orderFromSlots(slots);
+}
+
 void SoriMixAudioProcessor::updateFilters()
 {
-    const auto lowGain = readParameter(parameters, lowGainID);
-    const auto midGain = readParameter(parameters, midGainID);
-    const auto midFreq = readParameter(parameters, midFreqID);
-    const auto highGain = readParameter(parameters, highGainID);
-
-    if (juce::approximatelyEqual(lowGain, lastLowGain)
-        && juce::approximatelyEqual(midGain, lastMidGain)
-        && juce::approximatelyEqual(midFreq, lastMidFreq)
-        && juce::approximatelyEqual(highGain, lastHighGain))
-        return;
-
-    lastLowGain = lowGain;
-    lastMidGain = midGain;
-    lastMidFreq = midFreq;
-    lastHighGain = highGain;
-
-    *toneChain.get<0>().state = *juce::dsp::IIR::Coefficients<float>::makeLowShelf(
-        currentSampleRate, 160.0f, 0.707f, dbToLinear(lowGain));
-    *toneChain.get<1>().state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-        currentSampleRate, midFreq, 0.85f, dbToLinear(midGain));
-    *toneChain.get<2>().state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf(
-        currentSampleRate, 7200.0f, 0.707f, dbToLinear(highGain));
+    toneModule.update(currentSampleRate,
+                      readParameter(parameters, lowGainID),
+                      readParameter(parameters, midGainID),
+                      readParameter(parameters, midFreqID),
+                      readParameter(parameters, highGainID));
 }
 
 void SoriMixAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
@@ -136,68 +247,189 @@ void SoriMixAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     const auto inputRms = buffer.getRMSLevel(0, 0, buffer.getNumSamples());
     inputLevelDb.store(levelToDb(inputRms));
 
-    juce::AudioBuffer<float> dryBuffer;
-    dryBuffer.makeCopyOf(buffer, true);
+    const auto deEsserAmount = juce::jlimit(0.0f, 1.0f, readParameter(parameters, highGainID) / 12.0f);
+    deEsserModule.setAmount(deEsserAmount);
+    resonanceEqModule.update(currentSampleRate,
+                             juce::jmin(0.0f, readParameter(parameters, midGainID)),
+                             readParameter(parameters, midFreqID));
+    glueModule.setAmount(readParameter(parameters, compAmountID));
+    saturationModule.setAmount(juce::jlimit(0.0f, 1.0f, readParameter(parameters, mixID)));
+    widthModule.setWidth(readParameter(parameters, widthID));
+    mixSmoothed.setTargetValue(readParameter(parameters, mixID));
+    compareWetSmoothed.setTargetValue(readParameter(parameters, compareBeforeID) > 0.5f ? 0.0f : 1.0f);
 
-    updateFilters();
-
-    juce::dsp::AudioBlock<float> block(buffer);
-    toneChain.process(juce::dsp::ProcessContextReplacing<float>(block));
-
-    const auto compAmount = readParameter(parameters, compAmountID);
-    const auto threshold = juce::jmap(compAmount, 0.0f, 1.0f, -3.0f, -28.0f);
-    const auto ratio = juce::jmap(compAmount, 0.0f, 1.0f, 1.0f, 5.0f);
-    const auto attack = 0.08f;
-    const auto release = 0.985f;
-    auto maxReduction = 0.0f;
-
-    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+    const auto needsDryBlend = mixSmoothed.isSmoothing()
+        || ! juce::approximatelyEqual(mixSmoothed.getTargetValue(), 1.0f)
+        || compareWetSmoothed.isSmoothing()
+        || ! juce::approximatelyEqual(compareWetSmoothed.getTargetValue(), 1.0f);
+    if (needsDryBlend)
     {
-        auto peak = 0.0f;
+        dryBuffer.setSize(totalOutputChannels, buffer.getNumSamples(), false, false, true);
         for (int channel = 0; channel < totalOutputChannels; ++channel)
-            peak = juce::jmax(peak, std::abs(buffer.getSample(channel, sample)));
-
-        const auto detectorDb = levelToDb(peak);
-        const auto overDb = juce::jmax(0.0f, detectorDb - threshold);
-        const auto targetReductionDb = -overDb * (1.0f - (1.0f / ratio));
-        compressorEnvelope = targetReductionDb < compressorEnvelope
-            ? juce::jmap(attack, 0.0f, 1.0f, targetReductionDb, compressorEnvelope)
-            : compressorEnvelope * release;
-
-        const auto gain = dbToLinear(compressorEnvelope);
-        maxReduction = juce::jmin(maxReduction, compressorEnvelope);
-
-        for (int channel = 0; channel < totalOutputChannels; ++channel)
-            buffer.setSample(channel, sample, buffer.getSample(channel, sample) * gain);
+            dryBuffer.copyFrom(channel, 0, buffer, channel, 0, buffer.getNumSamples());
     }
 
-    if (totalOutputChannels >= 2)
-    {
-        const auto width = readParameter(parameters, widthID);
-        auto* left = buffer.getWritePointer(0);
-        auto* right = buffer.getWritePointer(1);
+    for (size_t i = 0; i < stageWetSmoothed.size(); ++i)
+        stageWetSmoothed[i].setTargetValue(readParameter(parameters, stageEnabledIDs[i]) > 0.5f ? 1.0f : 0.0f);
 
-        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+    const auto requestedStageOrder = readStageOrder();
+    if (! ordersEqual(requestedStageOrder, activeStageOrder))
+    {
+        pendingStageOrder = requestedStageOrder;
+        if (chainTransitionState == ChainTransitionState::stable)
         {
-            const auto mid = 0.5f * (left[sample] + right[sample]);
-            const auto side = 0.5f * (left[sample] - right[sample]) * width;
-            left[sample] = mid + side;
-            right[sample] = mid - side;
+            chainTransitionState = ChainTransitionState::fadingOut;
+            chainTransitionGain.setTargetValue(0.0f);
         }
     }
 
+    if (chainTransitionState == ChainTransitionState::fadingOut && chainTransitionGain.getCurrentValue() <= 0.001f)
+    {
+        activeStageOrder = pendingStageOrder;
+        chainTransitionState = ChainTransitionState::fadingIn;
+        chainTransitionGain.setCurrentAndTargetValue(0.0f);
+        chainTransitionGain.setTargetValue(1.0f);
+    }
+
+    auto maxReduction = 0.0f;
+
+    for (const auto stage : activeStageOrder)
+    {
+        auto& stageWet = stageWetSmoothed[stageIndex(stage)];
+
+        switch (stage)
+        {
+            case VocalStage::deEsser:
+                if (shouldProcessSmoothedWet(stageWet))
+                {
+                    copyBuffer(moduleDryBuffer, buffer);
+                    maxReduction = juce::jmin(maxReduction, deEsserModule.process(buffer));
+                    blendFromDryBuffer(buffer, moduleDryBuffer, stageWet);
+                }
+                else
+                {
+                    deEsserModule.skip(buffer.getNumSamples());
+                }
+                break;
+
+            case VocalStage::resonanceEq:
+                if (shouldProcessSmoothedWet(stageWet))
+                {
+                    copyBuffer(moduleDryBuffer, buffer);
+                    resonanceEqModule.process(buffer);
+                    blendFromDryBuffer(buffer, moduleDryBuffer, stageWet);
+                }
+                break;
+
+            case VocalStage::compressor:
+                if (shouldProcessSmoothedWet(stageWet))
+                {
+                    copyBuffer(moduleDryBuffer, buffer);
+                    maxReduction = juce::jmin(maxReduction, glueModule.process(buffer));
+                    blendFromDryBuffer(buffer, moduleDryBuffer, stageWet);
+                }
+                else
+                {
+                    glueModule.skip(buffer.getNumSamples());
+                }
+                break;
+
+            case VocalStage::musicalEq:
+                if (shouldProcessSmoothedWet(stageWet))
+                {
+                    copyBuffer(moduleDryBuffer, buffer);
+                    updateFilters();
+                    toneModule.process(buffer);
+                    blendFromDryBuffer(buffer, moduleDryBuffer, stageWet);
+                }
+                break;
+
+            case VocalStage::saturation:
+                if (shouldProcessSmoothedWet(stageWet))
+                {
+                    copyBuffer(moduleDryBuffer, buffer);
+                    saturationModule.process(buffer);
+                    blendFromDryBuffer(buffer, moduleDryBuffer, stageWet);
+                }
+                else
+                {
+                    saturationModule.skip(buffer.getNumSamples());
+                }
+                break;
+
+            case VocalStage::inflator:
+                if (totalOutputChannels >= 2 && shouldProcessSmoothedWet(stageWet))
+                {
+                    copyBuffer(moduleDryBuffer, buffer);
+                    widthModule.process(buffer);
+                    blendFromDryBuffer(buffer, moduleDryBuffer, stageWet);
+                }
+                else
+                {
+                    widthModule.skip(buffer.getNumSamples());
+                }
+                break;
+        }
+    }
+
+    juce::dsp::AudioBlock<float> block(buffer);
     outputGain.setGainDecibels(readParameter(parameters, outputGainID));
     outputGain.process(juce::dsp::ProcessContextReplacing<float>(block));
 
-    const auto wetMix = readParameter(parameters, mixID);
-    if (wetMix < 1.0f)
+    if (needsDryBlend)
     {
-        for (int channel = 0; channel < totalOutputChannels; ++channel)
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
         {
-            auto* wet = buffer.getWritePointer(channel);
-            const auto* dry = dryBuffer.getReadPointer(channel);
-            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+            const auto wetMix = mixSmoothed.getNextValue();
+            for (int channel = 0; channel < totalOutputChannels; ++channel)
+            {
+                auto* wet = buffer.getWritePointer(channel);
+                const auto* dry = dryBuffer.getReadPointer(channel);
                 wet[sample] = dry[sample] + (wet[sample] - dry[sample]) * wetMix;
+            }
+        }
+    }
+    else
+    {
+        mixSmoothed.skip(buffer.getNumSamples());
+    }
+
+    if (compareWetSmoothed.isSmoothing()
+        || ! juce::approximatelyEqual(compareWetSmoothed.getCurrentValue(), 1.0f)
+        || ! juce::approximatelyEqual(compareWetSmoothed.getTargetValue(), 1.0f))
+    {
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        {
+            const auto wetAmount = compareWetSmoothed.getNextValue();
+            for (int channel = 0; channel < totalOutputChannels; ++channel)
+            {
+                auto* wet = buffer.getWritePointer(channel);
+                const auto* dry = dryBuffer.getReadPointer(channel);
+                wet[sample] = dry[sample] + (wet[sample] - dry[sample]) * wetAmount;
+            }
+        }
+    }
+    else
+    {
+        compareWetSmoothed.skip(buffer.getNumSamples());
+    }
+
+    if (chainTransitionGain.isSmoothing()
+        || ! juce::approximatelyEqual(chainTransitionGain.getCurrentValue(), 1.0f)
+        || ! juce::approximatelyEqual(chainTransitionGain.getTargetValue(), 1.0f))
+    {
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        {
+            const auto gain = chainTransitionGain.getNextValue();
+            for (int channel = 0; channel < totalOutputChannels; ++channel)
+                buffer.setSample(channel, sample, buffer.getSample(channel, sample) * gain);
+        }
+
+        if (chainTransitionState == ChainTransitionState::fadingIn
+            && ! chainTransitionGain.isSmoothing()
+            && juce::approximatelyEqual(chainTransitionGain.getCurrentValue(), 1.0f))
+        {
+            chainTransitionState = ChainTransitionState::stable;
         }
     }
 
@@ -269,6 +501,32 @@ void SoriMixAudioProcessor::applyAssistantCommand(const juce::String& command)
         setParameterValue(compAmountID, 0.12f);
         setParameterValue(widthID, 1.0f);
     }
+}
+
+void SoriMixAudioProcessor::applyAssistantPlan(const AssistantParameterPlan& plan)
+{
+    if (plan.lowGain.has_value())
+        setParameterValue(lowGainID, *plan.lowGain);
+    if (plan.midGain.has_value())
+        setParameterValue(midGainID, *plan.midGain);
+    if (plan.midFreq.has_value())
+        setParameterValue(midFreqID, *plan.midFreq);
+    if (plan.highGain.has_value())
+        setParameterValue(highGainID, *plan.highGain);
+    if (plan.compAmount.has_value())
+        setParameterValue(compAmountID, *plan.compAmount);
+    if (plan.width.has_value())
+        setParameterValue(widthID, *plan.width);
+    if (plan.outputGain.has_value())
+        setParameterValue(outputGainID, *plan.outputGain);
+    if (plan.mix.has_value())
+        setParameterValue(mixID, *plan.mix);
+    if (plan.toneEnabled.has_value())
+        setParameterValue(stageEnabledIDs[stageIndex(VocalStage::musicalEq)], *plan.toneEnabled ? 1.0f : 0.0f);
+    if (plan.glueEnabled.has_value())
+        setParameterValue(stageEnabledIDs[stageIndex(VocalStage::compressor)], *plan.glueEnabled ? 1.0f : 0.0f);
+    if (plan.widthEnabled.has_value())
+        setParameterValue(stageEnabledIDs[stageIndex(VocalStage::inflator)], *plan.widthEnabled ? 1.0f : 0.0f);
 }
 
 juce::AudioProcessorEditor* SoriMixAudioProcessor::createEditor()

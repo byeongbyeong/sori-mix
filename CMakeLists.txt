@@ -33,12 +33,21 @@ juce_add_plugin(SoriMix
 )
 
 target_sources(SoriMix PRIVATE
+    Source/AssistantClient.cpp
+    Source/AssistantClient.h
+    Source/AssistantTypes.h
+    Source/ChainEngine.cpp
+    Source/ChainEngine.h
+    Source/DSPModules.cpp
+    Source/DSPModules.h
     Source/PluginEditor.cpp
     Source/PluginEditor.h
     Source/PluginProcessor.cpp
     Source/PluginProcessor.h
     Source/SecureCredentialStore.h
     Source/SecureCredentialStore.cpp
+    Source/VocalChain.cpp
+    Source/VocalChain.h
 )
 
 target_compile_definitions(SoriMix

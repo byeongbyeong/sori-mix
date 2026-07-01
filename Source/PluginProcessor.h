@@ -3,6 +3,10 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 
+#include "AssistantTypes.h"
+#include "ChainEngine.h"
+#include "DSPModules.h"
+
 class SoriMixAudioProcessor final : public juce::AudioProcessor
 {
 public:
@@ -36,30 +40,46 @@ public:
     const juce::AudioProcessorValueTreeState& getState() const noexcept { return parameters; }
 
     void applyAssistantCommand(const juce::String& command);
+    void applyAssistantPlan(const AssistantParameterPlan& plan);
 
     std::atomic<float> inputLevelDb { -90.0f };
     std::atomic<float> outputLevelDb { -90.0f };
     std::atomic<float> gainReductionDb { 0.0f };
 
 private:
+    enum class ChainTransitionState
+    {
+        stable,
+        fadingOut,
+        fadingIn
+    };
+
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     static float readParameter(const juce::AudioProcessorValueTreeState& state, const juce::String& parameterID);
+    ChainEngine::Order readStageOrder() const;
     void updateFilters();
     void setParameterValue(const juce::String& parameterID, float value);
 
     juce::AudioProcessorValueTreeState parameters;
 
-    using Filter = juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>,
-                                                  juce::dsp::IIR::Coefficients<float>>;
-    juce::dsp::ProcessorChain<Filter, Filter, Filter> toneChain;
+    ToneModule toneModule;
+    ResonanceEqModule resonanceEqModule;
+    DeEsserModule deEsserModule;
+    GlueModule glueModule;
+    SaturationModule saturationModule;
+    WidthModule widthModule;
     juce::dsp::Gain<float> outputGain;
+    std::array<juce::SmoothedValue<float>, VocalChain::stageCount> stageWetSmoothed;
+    juce::SmoothedValue<float> mixSmoothed;
+    juce::SmoothedValue<float> compareWetSmoothed;
+    juce::SmoothedValue<float> chainTransitionGain;
+    juce::AudioBuffer<float> dryBuffer;
+    juce::AudioBuffer<float> moduleDryBuffer;
 
     double currentSampleRate = 44100.0;
-    float compressorEnvelope = 0.0f;
-    float lastLowGain = 0.0f;
-    float lastMidGain = 0.0f;
-    float lastHighGain = 0.0f;
-    float lastMidFreq = 0.0f;
+    ChainEngine::Order activeStageOrder = ChainEngine::defaultOrder();
+    ChainEngine::Order pendingStageOrder = ChainEngine::defaultOrder();
+    ChainTransitionState chainTransitionState = ChainTransitionState::stable;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoriMixAudioProcessor)
 };

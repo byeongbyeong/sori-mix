@@ -1,17 +1,54 @@
 #include "PluginEditor.h"
 
+#include <cmath>
+#include <thread>
+
 namespace
 {
 constexpr int margin = 24;
+constexpr auto compareBeforeID = "compareBefore";
+constexpr std::array<const char*, VocalChain::stageCount> stageEnabledIDs {{
+    "deEsserEnabled",
+    "resonanceEqEnabled",
+    "compressorEnabled",
+    "musicalEqEnabled",
+    "saturationEnabled",
+    "inflatorEnabled",
+}};
 
-juce::Colour backgroundColour() { return juce::Colour(0xff101416); }
-juce::Colour panelColour() { return juce::Colour(0xff182022); }
-juce::Colour accentColour() { return juce::Colour(0xff5ed6a0); }
-juce::Colour textColour() { return juce::Colour(0xffe8f0eb); }
+constexpr std::array<const char*, VocalChain::stageCount> stageSlotIDs {{
+    "stageSlot1",
+    "stageSlot2",
+    "stageSlot3",
+    "stageSlot4",
+    "stageSlot5",
+    "stageSlot6",
+}};
+
+juce::Colour backgroundColour() { return juce::Colour(0xfffbf4ec); }
+juce::Colour panelColour() { return juce::Colour(0xfffffbf6); }
+juce::Colour controlColour() { return juce::Colour(0xffffefe4); }
+juce::Colour accentColour() { return juce::Colour(0xffffa88f); }
+juce::Colour textColour() { return juce::Colour(0xff5b463d); }
+juce::Colour mutedTextColour() { return juce::Colour(0xff9f8175); }
+juce::Colour outlineColour() { return juce::Colour(0xffecd8cc); }
 
 const std::array<const char*, 6> quickCommandLabels {
     "Warm", "Bright", "Punch", "Wide", "Clean", "Reset vibe"
 };
+
+const std::array<const char*, 8> defaultControlLabels {{
+    "Low", "Mid", "Focus", "High", "Glue", "Width", "Output", "Mix"
+}};
+
+const std::array<std::array<const char*, 8>, VocalChain::stageCount> stageControlLabels {{
+    std::array<const char*, 8> { "Low", "Mid", "Focus", "Sibilance", "Glue", "Width", "Output", "Mix" },
+    std::array<const char*, 8> { "Low", "Suppress", "Target", "High", "Glue", "Width", "Output", "Mix" },
+    std::array<const char*, 8> { "Low", "Mid", "Focus", "High", "Leveling", "Width", "Makeup", "Mix" },
+    std::array<const char*, 8> { "Body", "Shape", "Focus", "Air", "Glue", "Width", "Output", "Mix" },
+    std::array<const char*, 8> { "Low", "Mid", "Focus", "High", "Glue", "Width", "Output", "Density" },
+    std::array<const char*, 8> { "Low", "Mid", "Focus", "High", "Glue", "Size", "Output", "Blend" },
+}};
 }
 
 SoriMixAudioProcessorEditor::SoriMixAudioProcessorEditor(SoriMixAudioProcessor& p)
@@ -22,56 +59,73 @@ SoriMixAudioProcessorEditor::SoriMixAudioProcessorEditor(SoriMixAudioProcessor& 
     setResizeLimits(680, 440, 1280, 820);
 
     const std::array<std::pair<const char*, const char*>, 8> controlSpecs {{
-        { "lowGain", "Low" },
-        { "midGain", "Mid" },
-        { "midFreq", "Focus" },
-        { "highGain", "High" },
-        { "compAmount", "Glue" },
-        { "width", "Width" },
-        { "outputGain", "Output" },
-        { "mix", "Mix" },
+        { "lowGain", defaultControlLabels[0] },
+        { "midGain", defaultControlLabels[1] },
+        { "midFreq", defaultControlLabels[2] },
+        { "highGain", defaultControlLabels[3] },
+        { "compAmount", defaultControlLabels[4] },
+        { "width", defaultControlLabels[5] },
+        { "outputGain", defaultControlLabels[6] },
+        { "mix", defaultControlLabels[7] },
     }};
 
     for (size_t i = 0; i < controls.size(); ++i)
         configureControl(controls[i], controlSpecs[i].first, controlSpecs[i].second);
 
+    for (size_t i = 0; i < stageButtons.size(); ++i)
+    {
+        const auto& stage = VocalChain::stageInfo(i);
+        stageButtons[i].setButtonText(stage.shortName);
+        stageButtons[i].setClickingTogglesState(false);
+        stageButtons[i].setColour(juce::TextButton::buttonColourId, controlColour());
+        stageButtons[i].setColour(juce::TextButton::buttonOnColourId, stageColour(i));
+        stageButtons[i].setColour(juce::TextButton::textColourOffId, textColour());
+        stageButtons[i].setColour(juce::TextButton::textColourOnId, textColour());
+        stageButtons[i].onClick = [this, i] { selectStage(i); };
+        addAndMakeVisible(stageButtons[i]);
+    }
+
+    stageLabel.setColour(juce::Label::textColourId, textColour());
+    stageLabel.setJustificationType(juce::Justification::centredLeft);
+    addAndMakeVisible(stageLabel);
+
     promptBox.setMultiLine(false);
     promptBox.setReturnKeyStartsNewLine(false);
-    promptBox.setTextToShowWhenEmpty("Try: warmer vocal, brighter synth, wider chorus...", juce::Colour(0xff7f8c86));
-    promptBox.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff0d1112));
+    promptBox.setTextToShowWhenEmpty("Ask the selected vocal stage...", mutedTextColour());
+    promptBox.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xfffffbf6));
     promptBox.setColour(juce::TextEditor::textColourId, textColour());
-    promptBox.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff2b3839));
+    promptBox.setColour(juce::TextEditor::outlineColourId, outlineColour());
     promptBox.onReturnKey = [this] { runAssistantCommand(promptBox.getText()); };
     addAndMakeVisible(promptBox);
 
     applyButton.setColour(juce::TextButton::buttonColourId, accentColour());
-    applyButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xff06100c));
+    applyButton.setColour(juce::TextButton::textColourOffId, textColour());
     applyButton.onClick = [this] { runAssistantCommand(promptBox.getText()); };
     addAndMakeVisible(applyButton);
 
     providerBox.addItem("OpenAI", 1);
     providerBox.addItem("Groq", 2);
     providerBox.setSelectedId(1, juce::dontSendNotification);
-    providerBox.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff0d1112));
+    providerBox.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xfffffbf6));
     providerBox.setColour(juce::ComboBox::textColourId, textColour());
-    providerBox.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff2b3839));
+    providerBox.setColour(juce::ComboBox::outlineColourId, outlineColour());
     providerBox.onChange = [this] { refreshCredentialStatus(); };
     addAndMakeVisible(providerBox);
 
     apiKeyBox.setMultiLine(false);
     apiKeyBox.setPasswordCharacter(0x2022);
-    apiKeyBox.setTextToShowWhenEmpty("API key", juce::Colour(0xff7f8c86));
-    apiKeyBox.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff0d1112));
+    apiKeyBox.setTextToShowWhenEmpty("API key", mutedTextColour());
+    apiKeyBox.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xfffffbf6));
     apiKeyBox.setColour(juce::TextEditor::textColourId, textColour());
-    apiKeyBox.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff2b3839));
+    apiKeyBox.setColour(juce::TextEditor::outlineColourId, outlineColour());
     addAndMakeVisible(apiKeyBox);
 
-    saveKeyButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff355746));
+    saveKeyButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xffd9efd9));
     saveKeyButton.setColour(juce::TextButton::textColourOffId, textColour());
     saveKeyButton.onClick = [this] { saveApiKey(); };
     addAndMakeVisible(saveKeyButton);
 
-    deleteKeyButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff463033));
+    deleteKeyButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xffffddd6));
     deleteKeyButton.setColour(juce::TextButton::textColourOffId, textColour());
     deleteKeyButton.onClick = [this] { deleteApiKey(); };
     addAndMakeVisible(deleteKeyButton);
@@ -79,7 +133,7 @@ SoriMixAudioProcessorEditor::SoriMixAudioProcessorEditor(SoriMixAudioProcessor& 
     for (size_t i = 0; i < quickButtons.size(); ++i)
     {
         quickButtons[i].setButtonText(quickCommandLabels[i]);
-        quickButtons[i].setColour(juce::TextButton::buttonColourId, juce::Colour(0xff243032));
+        quickButtons[i].setColour(juce::TextButton::buttonColourId, controlColour());
         quickButtons[i].setColour(juce::TextButton::textColourOffId, textColour());
         quickButtons[i].onClick = [this, i] {
             const auto label = quickButtons[i].getButtonText();
@@ -91,26 +145,54 @@ SoriMixAudioProcessorEditor::SoriMixAudioProcessorEditor(SoriMixAudioProcessor& 
         addAndMakeVisible(quickButtons[i]);
     }
 
+    stageEnableButton.setClickingTogglesState(true);
+    stageEnableButton.setColour(juce::TextButton::buttonOnColourId, accentColour());
+    stageEnableButton.setColour(juce::TextButton::buttonColourId, controlColour());
+    stageEnableButton.setColour(juce::TextButton::textColourOnId, textColour());
+    stageEnableButton.setColour(juce::TextButton::textColourOffId, textColour());
+    addAndMakeVisible(stageEnableButton);
+
+    compareButton.setClickingTogglesState(true);
+    compareButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffffc7b8));
+    compareButton.setColour(juce::TextButton::buttonColourId, controlColour());
+    compareButton.setColour(juce::TextButton::textColourOnId, textColour());
+    compareButton.setColour(juce::TextButton::textColourOffId, textColour());
+    addAndMakeVisible(compareButton);
+    compareAttachment = std::make_unique<ButtonAttachment>(audioProcessor.getState(), compareBeforeID, compareButton);
+
+    const auto stageChoices = ChainEngine::getStageChoices();
+    for (size_t i = 0; i < chainSlotBoxes.size(); ++i)
+    {
+        chainSlotBoxes[i].addItemList(stageChoices, 1);
+        chainSlotBoxes[i].setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xfffffbf6));
+        chainSlotBoxes[i].setColour(juce::ComboBox::textColourId, textColour());
+        chainSlotBoxes[i].setColour(juce::ComboBox::outlineColourId, outlineColour());
+        addAndMakeVisible(chainSlotBoxes[i]);
+        chainSlotAttachments[i] = std::make_unique<ComboBoxAttachment>(audioProcessor.getState(), stageSlotIDs[i], chainSlotBoxes[i]);
+    }
+
     statusLabel.setText("Assistant ready", juce::dontSendNotification);
-    statusLabel.setColour(juce::Label::textColourId, juce::Colour(0xff9fb4ac));
+    statusLabel.setColour(juce::Label::textColourId, mutedTextColour());
     statusLabel.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(statusLabel);
 
-    credentialLabel.setColour(juce::Label::textColourId, juce::Colour(0xff9fb4ac));
+    credentialLabel.setColour(juce::Label::textColourId, mutedTextColour());
     credentialLabel.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(credentialLabel);
     refreshCredentialStatus();
 
     inputMeterLabel.setText("IN", juce::dontSendNotification);
     outputMeterLabel.setText("OUT", juce::dontSendNotification);
-    for (auto* label : { &inputMeterLabel, &outputMeterLabel })
+    reductionMeterLabel.setText("GR", juce::dontSendNotification);
+    for (auto* label : { &inputMeterLabel, &outputMeterLabel, &reductionMeterLabel })
     {
-        label->setColour(juce::Label::textColourId, juce::Colour(0xff9fb4ac));
+        label->setColour(juce::Label::textColourId, mutedTextColour());
         label->setJustificationType(juce::Justification::centred);
         addAndMakeVisible(*label);
     }
 
     startTimerHz(30);
+    updateStagePage();
 }
 
 void SoriMixAudioProcessorEditor::configureControl(Control& control,
@@ -128,11 +210,11 @@ void SoriMixAudioProcessorEditor::configureControl(Control& control,
     control.slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     control.slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 72, 20);
     control.slider.setColour(juce::Slider::rotarySliderFillColourId, accentColour());
-    control.slider.setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colour(0xff344143));
-    control.slider.setColour(juce::Slider::thumbColourId, juce::Colour(0xfff4fff9));
+    control.slider.setColour(juce::Slider::rotarySliderOutlineColourId, outlineColour());
+    control.slider.setColour(juce::Slider::thumbColourId, textColour());
     control.slider.setColour(juce::Slider::textBoxTextColourId, textColour());
-    control.slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0x00000000));
-    control.slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0x00000000));
+    control.slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xfffffbf6));
+    control.slider.setColour(juce::Slider::textBoxOutlineColourId, outlineColour());
     addAndMakeVisible(control.slider);
 
     control.attachment = std::make_unique<SliderAttachment>(audioProcessor.getState(), parameterID, control.slider);
@@ -151,16 +233,18 @@ void SoriMixAudioProcessorEditor::paint(juce::Graphics& g)
     g.drawText("SoriMix", margin + 18, margin + 14, 180, 38, juce::Justification::centredLeft);
 
     g.setFont(juce::FontOptions(13.0f));
-    g.setColour(juce::Colour(0xff9fb4ac));
-    g.drawText("Prompt-shaped tone, glue, width, and level control", margin + 20, margin + 48, 440, 24,
+    g.setColour(mutedTextColour());
+    g.drawText("Vocal chain shaping, monitoring, and stage-aware assistant", margin + 20, margin + 48, 500, 24,
                juce::Justification::centredLeft);
 
     auto meterArea = juce::Rectangle<float>(static_cast<float>(getWidth() - margin - 174),
-                                            static_cast<float>(margin + 20), 130.0f, 72.0f);
-    drawMeter(g, meterArea.removeFromTop(24), inputMeter, accentColour());
-    drawMeter(g, meterArea.removeFromTop(24).translated(0.0f, 14.0f), outputMeter, juce::Colour(0xff74a7ff));
+                                            static_cast<float>(margin + 14), 130.0f, 88.0f);
+    const auto reductionForMeter = juce::jmap(juce::jlimit(0.0f, 18.0f, std::abs(reductionMeter)), 0.0f, 18.0f, -60.0f, 0.0f);
+    drawMeter(g, meterArea.removeFromTop(20), inputMeter, juce::Colour(0xffffb48f));
+    drawMeter(g, meterArea.removeFromTop(20).translated(0.0f, 10.0f), outputMeter, juce::Colour(0xffb6d9ff));
+    drawMeter(g, meterArea.removeFromTop(20).translated(0.0f, 20.0f), reductionForMeter, juce::Colour(0xffd8c4ff));
 
-    g.setColour(juce::Colour(0xff2b3839));
+    g.setColour(outlineColour());
     g.drawRoundedRectangle(area, 8.0f, 1.0f);
 }
 
@@ -168,6 +252,14 @@ void SoriMixAudioProcessorEditor::resized()
 {
     auto area = getLocalBounds().reduced(margin + 18);
     area.removeFromTop(82);
+
+    auto stageRow = area.removeFromTop(34);
+    stageLabel.setBounds(stageRow.removeFromLeft(112).reduced(0, 1));
+    const auto stageButtonWidth = stageRow.getWidth() / static_cast<int>(stageButtons.size());
+    for (auto& button : stageButtons)
+        button.setBounds(stageRow.removeFromLeft(stageButtonWidth).reduced(3, 1));
+
+    area.removeFromTop(8);
 
     auto promptArea = area.removeFromBottom(158);
     auto statusArea = promptArea.removeFromBottom(26);
@@ -192,6 +284,14 @@ void SoriMixAudioProcessorEditor::resized()
     for (auto& button : quickButtons)
         button.setBounds(quickRow.removeFromLeft(quickWidth).reduced(3, 0));
 
+    promptArea.removeFromTop(8);
+    auto moduleRow = promptArea.removeFromTop(30);
+    stageEnableButton.setBounds(moduleRow.removeFromLeft(112).reduced(3, 0));
+    compareButton.setBounds(moduleRow.removeFromLeft(92).reduced(3, 0));
+    const auto slotWidth = moduleRow.getWidth() / static_cast<int>(chainSlotBoxes.size());
+    for (auto& slotBox : chainSlotBoxes)
+        slotBox.setBounds(moduleRow.removeFromLeft(slotWidth).reduced(2, 0));
+
     auto controlArea = area.reduced(0, 12);
     auto topRow = controlArea.removeFromTop(controlArea.getHeight() / 2);
     auto bottomRow = controlArea;
@@ -203,7 +303,8 @@ void SoriMixAudioProcessorEditor::resized()
         layoutControl(controls[static_cast<size_t>(i)], bottomRow.removeFromLeft(bottomRow.getWidth() / (8 - i)).reduced(8));
 
     inputMeterLabel.setBounds(getWidth() - margin - 190, margin + 18, 38, 20);
-    outputMeterLabel.setBounds(getWidth() - margin - 190, margin + 56, 38, 20);
+    outputMeterLabel.setBounds(getWidth() - margin - 190, margin + 48, 38, 20);
+    reductionMeterLabel.setBounds(getWidth() - margin - 190, margin + 78, 38, 20);
 }
 
 void SoriMixAudioProcessorEditor::layoutControl(Control& control, juce::Rectangle<int> bounds)
@@ -218,9 +319,131 @@ void SoriMixAudioProcessorEditor::runAssistantCommand(const juce::String& comman
     if (trimmed.isEmpty())
         return;
 
-    audioProcessor.applyAssistantCommand(trimmed);
-    statusLabel.setText("Applied: " + trimmed, juce::dontSendNotification);
+    if (assistantRequestInFlight.load())
+        return;
+
+    const auto provider = providerBox.getText();
+    const auto key = SecureCredentialStore::instance().loadApiKey(provider);
+    const auto& stage = VocalChain::stageInfo(selectedStageIndex);
+    const auto assistantPrompt = juce::String("Current vocal chain stage: ")
+        + stage.displayName + "\n" + stage.assistantContext + "\nUser request: " + trimmed;
+
+    if (key.result != SecureCredentialStore::Result::ok)
+    {
+        audioProcessor.applyAssistantCommand(trimmed);
+        statusLabel.setText("Local preset applied: " + trimmed, juce::dontSendNotification);
+        promptBox.clear();
+        return;
+    }
+
+    assistantRequestInFlight.store(true);
+    setAssistantControlsEnabled(false);
+    statusLabel.setText("Asking " + provider + "...", juce::dontSendNotification);
     promptBox.clear();
+
+    juce::Component::SafePointer<SoriMixAudioProcessorEditor> safeThis(this);
+    std::thread([safeThis, provider, apiKey = key.value, trimmed, assistantPrompt] {
+        auto assistantResult = AssistantClient::requestPlan(provider, apiKey, assistantPrompt);
+
+        juce::MessageManager::callAsync([safeThis, result = std::move(assistantResult), trimmed] {
+            if (safeThis == nullptr)
+                return;
+
+            safeThis->assistantRequestInFlight.store(false);
+            safeThis->setAssistantControlsEnabled(true);
+
+            if (result.ok)
+            {
+                safeThis->audioProcessor.applyAssistantPlan(result.plan);
+                safeThis->statusLabel.setText(result.message, juce::dontSendNotification);
+            }
+            else
+            {
+                safeThis->audioProcessor.applyAssistantCommand(trimmed);
+                safeThis->statusLabel.setText(result.message + " Local fallback applied.", juce::dontSendNotification);
+            }
+        });
+    }).detach();
+}
+
+void SoriMixAudioProcessorEditor::selectStage(size_t index)
+{
+    selectedStageIndex = juce::jmin(index, stageButtons.size() - 1);
+    updateStagePage();
+}
+
+void SoriMixAudioProcessorEditor::updateStageColours()
+{
+    const auto colour = stageColour(selectedStageIndex);
+
+    stageEnableButton.setColour(juce::TextButton::buttonOnColourId, colour);
+    applyButton.setColour(juce::TextButton::buttonColourId, colour);
+
+    for (auto& control : controls)
+    {
+        control.slider.setColour(juce::Slider::rotarySliderFillColourId, colour);
+        control.label.setColour(juce::Label::textColourId, textColour());
+    }
+}
+
+void SoriMixAudioProcessorEditor::updateStagePage()
+{
+    const auto& stage = VocalChain::stageInfo(selectedStageIndex);
+    stageLabel.setText(stage.displayName, juce::dontSendNotification);
+    stageEnableButton.setButtonText(juce::String(stage.shortName) + " On");
+    stageEnableAttachment = std::make_unique<ButtonAttachment>(
+        audioProcessor.getState(), stageEnabledIDs[selectedStageIndex], stageEnableButton);
+
+    for (size_t i = 0; i < stageButtons.size(); ++i)
+        stageButtons[i].setToggleState(i == selectedStageIndex, juce::dontSendNotification);
+
+    for (size_t i = 0; i < controls.size(); ++i)
+        controls[i].label.setText(stageControlLabels[selectedStageIndex][i], juce::dontSendNotification);
+
+    updateStageColours();
+
+    auto setControlVisible = [this](size_t index, bool shouldBeVisible) {
+        controls[index].label.setVisible(shouldBeVisible);
+        controls[index].slider.setVisible(shouldBeVisible);
+    };
+
+    for (size_t i = 0; i < controls.size(); ++i)
+        setControlVisible(i, false);
+
+    switch (stage.stage)
+    {
+        case VocalStage::resonanceEq:
+            setControlVisible(1, true);
+            setControlVisible(2, true);
+            break;
+
+        case VocalStage::compressor:
+            setControlVisible(4, true);
+            setControlVisible(6, true);
+            break;
+
+        case VocalStage::musicalEq:
+            setControlVisible(0, true);
+            setControlVisible(1, true);
+            setControlVisible(2, true);
+            setControlVisible(3, true);
+            break;
+
+        case VocalStage::inflator:
+            setControlVisible(6, true);
+            setControlVisible(7, true);
+            break;
+
+        case VocalStage::deEsser:
+            setControlVisible(3, true);
+            break;
+
+        case VocalStage::saturation:
+            setControlVisible(7, true);
+            break;
+    }
+
+    promptBox.setTextToShowWhenEmpty("Ask " + juce::String(stage.shortName) + " assistant...", juce::Colour(0xff7f8c86));
 }
 
 void SoriMixAudioProcessorEditor::saveApiKey()
@@ -262,6 +485,16 @@ void SoriMixAudioProcessorEditor::refreshCredentialStatus()
         credentialLabel.setText("Secure key storage unavailable", juce::dontSendNotification);
 }
 
+void SoriMixAudioProcessorEditor::setAssistantControlsEnabled(bool shouldBeEnabled)
+{
+    promptBox.setEnabled(shouldBeEnabled);
+    applyButton.setEnabled(shouldBeEnabled);
+    providerBox.setEnabled(shouldBeEnabled);
+
+    for (auto& button : quickButtons)
+        button.setEnabled(shouldBeEnabled);
+}
+
 void SoriMixAudioProcessorEditor::timerCallback()
 {
     inputMeter = audioProcessor.inputLevelDb.load();
@@ -270,13 +503,27 @@ void SoriMixAudioProcessorEditor::timerCallback()
     repaint();
 }
 
+juce::Colour SoriMixAudioProcessorEditor::stageColour(size_t index)
+{
+    static const std::array<juce::Colour, VocalChain::stageCount> colours {{
+        juce::Colour(0xffffb7a6),
+        juce::Colour(0xffffd6a5),
+        juce::Colour(0xfff7c9d7),
+        juce::Colour(0xffcfe8c9),
+        juce::Colour(0xffffc4a3),
+        juce::Colour(0xffc9ddff),
+    }};
+
+    return colours[juce::jmin(index, colours.size() - 1)];
+}
+
 void SoriMixAudioProcessorEditor::drawMeter(juce::Graphics& g,
                                             juce::Rectangle<float> bounds,
                                             float valueDb,
                                             juce::Colour colour)
 {
     const auto normalised = juce::jlimit(0.0f, 1.0f, juce::jmap(valueDb, -60.0f, 0.0f, 0.0f, 1.0f));
-    g.setColour(juce::Colour(0xff253032));
+    g.setColour(juce::Colour(0xffffeadf));
     g.fillRoundedRectangle(bounds, 3.0f);
     g.setColour(colour);
     g.fillRoundedRectangle(bounds.withWidth(bounds.getWidth() * normalised), 3.0f);
