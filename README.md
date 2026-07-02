@@ -40,14 +40,14 @@ The internal JUCE target and current build artifact name are still `SoriMix`. Th
 
 | Stage | Code module | Main purpose | Current control mapping |
 | --- | --- | --- | --- |
-| DeEss | `DeEsserModule` | Controls sibilance and harsh consonants while preserving vocal air. | `highGain` is currently reused as de-essing intensity. |
-| Res EQ | `ResonanceEqModule` | Suppresses narrow resonant buildup around the selected focus area. | Negative `midGain` controls reduction amount, `midFreq` controls target area. |
-| Comp | `GlueModule` | Vocal-first leveling, peak control, density, and frontness. | `compAmount` controls compression intensity. |
+| DeEss | `DeEsserModule` | Controls sibilance and harsh consonants while preserving vocal air. | `deEssAmount`. |
+| Res EQ | `ResonanceEqModule` | Suppresses narrow resonant buildup around the selected focus area. | `resonanceAmount`, `resonanceFreq`. |
+| Comp | `GlueModule` | Vocal-first leveling, peak control, density, and frontness. | `compAmount`, `compMakeup`. |
 | EQ | `ToneModule` | Musical tone shaping for body, focus, presence, and air. | `lowGain`, `midGain`, `midFreq`, `highGain`. |
-| Sat | `SaturationModule` | Adds harmonic density, warmth, and controlled edge. | `mix` is currently reused as saturation density. |
+| Sat | `SaturationModule` | Adds harmonic density, warmth, and controlled edge. | `satDrive`. |
 | Inflate | `WidthModule` plus output gain | Adds perceived size, width, and final output control. | `width`, `outputGain`. |
 
-Some controls are currently shared between modules for development speed. A later product pass should split these into dedicated public parameters per module so the UI, automation names, presets, and AI plans are cleaner.
+Module controls now use dedicated public parameters for the main stage actions. `mix` remains a global wet/dry control that can be shown from multiple stage pages because it affects the whole chain, not a single module.
 
 ## Vocal Chain Architecture
 
@@ -112,13 +112,18 @@ Current public parameters:
 | Parameter ID | Display name | Range | Role |
 | --- | --- | --- | --- |
 | `lowGain` | Low Gain | -12 dB to +12 dB | Low/body tone shaping. |
-| `midGain` | Mid Gain | -12 dB to +12 dB | Mid tone shaping and resonance reduction amount when negative. |
+| `midGain` | Mid Gain | -12 dB to +12 dB | Musical EQ mid tone shaping. |
 | `midFreq` | Mid Focus | 250 Hz to 4500 Hz | Mid EQ focus and resonance target area. |
-| `highGain` | High Gain | -12 dB to +12 dB | High tone shaping and temporary de-essing intensity source. |
+| `highGain` | High Gain | -12 dB to +12 dB | High/air tone shaping. |
 | `compAmount` | Glue | 0 to 1 | Compressor amount. |
+| `compMakeup` | Comp Makeup | -12 dB to +12 dB | User compressor makeup gain. |
+| `deEssAmount` | DeEss Amount | 0 to 1 | Dedicated de-esser intensity. |
+| `resonanceAmount` | Res EQ Amount | 0 to 1 | Dedicated resonance suppression amount. |
+| `resonanceFreq` | Res EQ Target | 250 Hz to 4500 Hz | Dedicated resonance target frequency. |
+| `satDrive` | Sat Drive | 0 to 1 | Dedicated saturation drive/density. |
 | `width` | Width | 0 to 2 | Inflator/width amount. |
 | `outputGain` | Output | -24 dB to +12 dB | Final gain. |
-| `mix` | Mix | 0 to 1 | Global wet/dry mix and temporary saturation density source. |
+| `mix` | Mix | 0 to 1 | Global wet/dry mix. |
 | `compareBefore` | Compare Before | on/off | Whole-chain before/after comparison. |
 
 Chain order parameters:
@@ -181,7 +186,12 @@ Current supported assistant plan fields:
 - `midGain`
 - `midFreq`
 - `highGain`
+- `deEssAmount`
+- `resonanceAmount`
+- `resonanceFreq`
 - `compAmount`
+- `compMakeup`
+- `satDrive`
 - `width`
 - `outputGain`
 - `mix`
@@ -335,7 +345,7 @@ scripts/
 ## Important Implementation Notes
 
 - The current public plugin target is still named `SoriMix`; product naming is moving toward `Sori 1`.
-- Some stage controls are temporarily mapped to shared parameters. This should be split before final product release.
+- Stage controls now have dedicated parameters for the main module actions; future passes should add deeper controls such as de-esser range, resonance selectivity, compressor attack/release, and saturation tone.
 - Pitch/modulation and auto-tune are intentionally out of scope for this plugin.
 - The assistant currently applies direct parameter changes; future versions should support richer plans, preview/confirm behavior, and better stage-specific control names.
 - The current code is a development prototype, not a notarized commercial installer.
@@ -345,10 +355,9 @@ scripts/
 High-priority next steps:
 
 1. Rename product-facing JUCE metadata from `SoriMix` to `Sori 1` when ready.
-2. Split shared parameters into dedicated module parameters.
-3. Expand stage-specific UI controls for DeEss, Res EQ, Comp, EQ, Sat, and Inflate.
-4. Improve metering with per-stage reduction/activity feedback.
-5. Add preset save/load and factory vocal presets.
-6. Add assistant preview/confirm flow before applying larger changes.
-7. Add notarized macOS packaging and signed releases.
-8. Prepare commercial release documentation, changelog, license, and installer flow.
+2. Expand stage-specific UI controls for DeEss, Res EQ, Comp, EQ, Sat, and Inflate.
+3. Improve metering with per-stage reduction/activity feedback.
+4. Add preset save/load and factory vocal presets.
+5. Add assistant preview/confirm flow before applying larger changes.
+6. Add notarized macOS packaging and signed releases.
+7. Prepare commercial release documentation, changelog, license, and installer flow.

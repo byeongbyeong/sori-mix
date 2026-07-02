@@ -7,6 +7,20 @@ namespace
 {
 constexpr int margin = 24;
 constexpr auto compareBeforeID = "compareBefore";
+constexpr auto lowGainID = "lowGain";
+constexpr auto midGainID = "midGain";
+constexpr auto midFreqID = "midFreq";
+constexpr auto highGainID = "highGain";
+constexpr auto compAmountID = "compAmount";
+constexpr auto compMakeupID = "compMakeup";
+constexpr auto deEssAmountID = "deEssAmount";
+constexpr auto resonanceAmountID = "resonanceAmount";
+constexpr auto resonanceFreqID = "resonanceFreq";
+constexpr auto satDriveID = "satDrive";
+constexpr auto widthID = "width";
+constexpr auto outputGainID = "outputGain";
+constexpr auto mixID = "mix";
+
 constexpr std::array<const char*, VocalChain::stageCount> stageEnabledIDs {{
     "deEsserEnabled",
     "resonanceEqEnabled",
@@ -37,17 +51,73 @@ const std::array<const char*, 6> quickCommandLabels {
     "Warm", "Bright", "Punch", "Wide", "Clean", "Reset vibe"
 };
 
-const std::array<const char*, 8> defaultControlLabels {{
-    "Low", "Mid", "Focus", "High", "Glue", "Width", "Output", "Mix"
-}};
+struct StageControlSpec
+{
+    const char* parameterID = nullptr;
+    const char* label = nullptr;
+};
 
-const std::array<std::array<const char*, 8>, VocalChain::stageCount> stageControlLabels {{
-    std::array<const char*, 8> { "Low", "Mid", "Focus", "Sibilance", "Glue", "Width", "Output", "Mix" },
-    std::array<const char*, 8> { "Low", "Suppress", "Target", "High", "Glue", "Width", "Output", "Mix" },
-    std::array<const char*, 8> { "Low", "Mid", "Focus", "High", "Leveling", "Width", "Makeup", "Mix" },
-    std::array<const char*, 8> { "Body", "Shape", "Focus", "Air", "Glue", "Width", "Output", "Mix" },
-    std::array<const char*, 8> { "Low", "Mid", "Focus", "High", "Glue", "Width", "Output", "Density" },
-    std::array<const char*, 8> { "Low", "Mid", "Focus", "High", "Glue", "Size", "Output", "Blend" },
+const std::array<std::array<StageControlSpec, 8>, VocalChain::stageCount> stageControlSpecs {{
+    std::array<StageControlSpec, 8> {{
+        { deEssAmountID, "Sibilance" },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { mixID, "Global Mix" },
+    }},
+    std::array<StageControlSpec, 8> {{
+        { resonanceAmountID, "Suppress" },
+        { resonanceFreqID, "Target" },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { mixID, "Global Mix" },
+    }},
+    std::array<StageControlSpec, 8> {{
+        { compAmountID, "Leveling" },
+        { compMakeupID, "Makeup" },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { mixID, "Global Mix" },
+    }},
+    std::array<StageControlSpec, 8> {{
+        { lowGainID, "Body" },
+        { midGainID, "Shape" },
+        { midFreqID, "Focus" },
+        { highGainID, "Air" },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { mixID, "Global Mix" },
+    }},
+    std::array<StageControlSpec, 8> {{
+        { satDriveID, "Drive" },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { mixID, "Global Mix" },
+    }},
+    std::array<StageControlSpec, 8> {{
+        { widthID, "Size" },
+        { outputGainID, "Output" },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { nullptr, nullptr },
+        { mixID, "Global Mix" },
+    }},
 }};
 }
 
@@ -58,19 +128,13 @@ SoriMixAudioProcessorEditor::SoriMixAudioProcessorEditor(SoriMixAudioProcessor& 
     setResizable(true, true);
     setResizeLimits(680, 440, 1280, 820);
 
-    const std::array<std::pair<const char*, const char*>, 8> controlSpecs {{
-        { "lowGain", defaultControlLabels[0] },
-        { "midGain", defaultControlLabels[1] },
-        { "midFreq", defaultControlLabels[2] },
-        { "highGain", defaultControlLabels[3] },
-        { "compAmount", defaultControlLabels[4] },
-        { "width", defaultControlLabels[5] },
-        { "outputGain", defaultControlLabels[6] },
-        { "mix", defaultControlLabels[7] },
-    }};
-
     for (size_t i = 0; i < controls.size(); ++i)
-        configureControl(controls[i], controlSpecs[i].first, controlSpecs[i].second);
+    {
+        const auto& spec = stageControlSpecs[selectedStageIndex][i];
+        configureControl(controls[i],
+                         spec.parameterID != nullptr ? spec.parameterID : mixID,
+                         spec.label != nullptr ? spec.label : "");
+    }
 
     for (size_t i = 0; i < stageButtons.size(); ++i)
     {
@@ -199,9 +263,6 @@ void SoriMixAudioProcessorEditor::configureControl(Control& control,
                                                    const juce::String& parameterID,
                                                    const juce::String& title)
 {
-    control.parameterID = parameterID;
-    control.title = title;
-
     control.label.setText(title, juce::dontSendNotification);
     control.label.setJustificationType(juce::Justification::centred);
     control.label.setColour(juce::Label::textColourId, textColour());
@@ -217,7 +278,23 @@ void SoriMixAudioProcessorEditor::configureControl(Control& control,
     control.slider.setColour(juce::Slider::textBoxOutlineColourId, outlineColour());
     addAndMakeVisible(control.slider);
 
-    control.attachment = std::make_unique<SliderAttachment>(audioProcessor.getState(), parameterID, control.slider);
+    attachControl(control, parameterID, title);
+}
+
+void SoriMixAudioProcessorEditor::attachControl(Control& control,
+                                                const juce::String& parameterID,
+                                                const juce::String& title)
+{
+    if (control.parameterID == parameterID && control.title == title && control.attachment != nullptr)
+        return;
+
+    control.attachment.reset();
+    control.parameterID = parameterID;
+    control.title = title;
+    control.label.setText(title, juce::dontSendNotification);
+
+    if (parameterID.isNotEmpty())
+        control.attachment = std::make_unique<SliderAttachment>(audioProcessor.getState(), parameterID, control.slider);
 }
 
 void SoriMixAudioProcessorEditor::paint(juce::Graphics& g)
@@ -397,9 +474,6 @@ void SoriMixAudioProcessorEditor::updateStagePage()
     for (size_t i = 0; i < stageButtons.size(); ++i)
         stageButtons[i].setToggleState(i == selectedStageIndex, juce::dontSendNotification);
 
-    for (size_t i = 0; i < controls.size(); ++i)
-        controls[i].label.setText(stageControlLabels[selectedStageIndex][i], juce::dontSendNotification);
-
     updateStageColours();
 
     auto setControlVisible = [this](size_t index, bool shouldBeVisible) {
@@ -407,40 +481,15 @@ void SoriMixAudioProcessorEditor::updateStagePage()
         controls[index].slider.setVisible(shouldBeVisible);
     };
 
+    const auto& specs = stageControlSpecs[selectedStageIndex];
     for (size_t i = 0; i < controls.size(); ++i)
-        setControlVisible(i, false);
-
-    switch (stage.stage)
     {
-        case VocalStage::resonanceEq:
-            setControlVisible(1, true);
-            setControlVisible(2, true);
-            break;
-
-        case VocalStage::compressor:
-            setControlVisible(4, true);
-            setControlVisible(6, true);
-            break;
-
-        case VocalStage::musicalEq:
-            setControlVisible(0, true);
-            setControlVisible(1, true);
-            setControlVisible(2, true);
-            setControlVisible(3, true);
-            break;
-
-        case VocalStage::inflator:
-            setControlVisible(6, true);
-            setControlVisible(7, true);
-            break;
-
-        case VocalStage::deEsser:
-            setControlVisible(3, true);
-            break;
-
-        case VocalStage::saturation:
-            setControlVisible(7, true);
-            break;
+        const auto& spec = specs[i];
+        const auto isVisible = spec.parameterID != nullptr && spec.label != nullptr;
+        attachControl(controls[i],
+                      isVisible ? spec.parameterID : juce::String(),
+                      isVisible ? spec.label : juce::String());
+        setControlVisible(i, isVisible);
     }
 
     promptBox.setTextToShowWhenEmpty("Ask " + juce::String(stage.shortName) + " assistant...", juce::Colour(0xff7f8c86));

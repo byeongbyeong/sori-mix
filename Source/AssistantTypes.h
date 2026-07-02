@@ -10,7 +10,12 @@ struct AssistantParameterPlan
     std::optional<float> midGain;
     std::optional<float> midFreq;
     std::optional<float> highGain;
+    std::optional<float> deEssAmount;
+    std::optional<float> resonanceAmount;
+    std::optional<float> resonanceFreq;
     std::optional<float> compAmount;
+    std::optional<float> compMakeup;
+    std::optional<float> satDrive;
     std::optional<float> width;
     std::optional<float> outputGain;
     std::optional<float> mix;

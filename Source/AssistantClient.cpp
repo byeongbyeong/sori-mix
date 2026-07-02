@@ -35,12 +35,13 @@ juce::String systemPrompt()
            "Compressor, Musical EQ, Saturation, Inflator. Pitch/modulation and auto-tune are handled outside this plugin. "
            "The user prompt may include "
            "the currently selected stage; make decisions mainly for that stage while keeping the full vocal chain in mind. "
-           "Use these optional numeric fields only when helpful: lowGain, midGain, midFreq, "
-           "highGain, compAmount, width, outputGain, mix. Ranges: lowGain/midGain/highGain -12..12 dB, "
-           "midFreq 250..4500 Hz, compAmount 0..1, width 0..2, outputGain -24..12 dB, mix 0..1. "
-           "Stage mapping: De-Esser uses highGain as de-essing intensity; Resonance EQ uses negative midGain "
-           "with midFreq as the target resonance area; Compressor uses compAmount; Musical EQ uses lowGain, "
-           "midGain, midFreq, and highGain; Saturation uses mix for density; Inflator uses width and outputGain. "
+           "Use these optional numeric fields only when helpful: deEssAmount, resonanceAmount, resonanceFreq, "
+           "compAmount, compMakeup, lowGain, midGain, midFreq, highGain, satDrive, width, outputGain, mix. "
+           "Ranges: deEssAmount/resonanceAmount/compAmount/satDrive/mix 0..1, resonanceFreq/midFreq 250..4500 Hz, "
+           "compMakeup/lowGain/midGain/highGain -12..12 dB, width 0..2, outputGain -24..12 dB. "
+           "Stage mapping: De-Esser uses deEssAmount; Resonance EQ uses resonanceAmount and resonanceFreq; "
+           "Compressor uses compAmount and compMakeup; Musical EQ uses lowGain, midGain, midFreq, and highGain; "
+           "Saturation uses satDrive; Inflator uses width and outputGain. "
            "You may also use optional boolean fields toneEnabled, glueEnabled, widthEnabled; these map to "
            "Musical EQ, Compressor, and Inflator compatibility controls. "
            "Also include a short summary string. Prefer subtle, musical moves.";
@@ -136,7 +137,12 @@ bool hasParameterChange(const AssistantParameterPlan& plan)
         || plan.midGain.has_value()
         || plan.midFreq.has_value()
         || plan.highGain.has_value()
+        || plan.deEssAmount.has_value()
+        || plan.resonanceAmount.has_value()
+        || plan.resonanceFreq.has_value()
         || plan.compAmount.has_value()
+        || plan.compMakeup.has_value()
+        || plan.satDrive.has_value()
         || plan.width.has_value()
         || plan.outputGain.has_value()
         || plan.mix.has_value()
@@ -197,7 +203,12 @@ AssistantClient::Result parsePlan(const juce::String& content)
     plan.midGain = readRangedFloatProperty(*object, "midGain", -12.0f, 12.0f);
     plan.midFreq = readRangedFloatProperty(*object, "midFreq", 250.0f, 4500.0f);
     plan.highGain = readRangedFloatProperty(*object, "highGain", -12.0f, 12.0f);
+    plan.deEssAmount = readRangedFloatProperty(*object, "deEssAmount", 0.0f, 1.0f);
+    plan.resonanceAmount = readRangedFloatProperty(*object, "resonanceAmount", 0.0f, 1.0f);
+    plan.resonanceFreq = readRangedFloatProperty(*object, "resonanceFreq", 250.0f, 4500.0f);
     plan.compAmount = readRangedFloatProperty(*object, "compAmount", 0.0f, 1.0f);
+    plan.compMakeup = readRangedFloatProperty(*object, "compMakeup", -12.0f, 12.0f);
+    plan.satDrive = readRangedFloatProperty(*object, "satDrive", 0.0f, 1.0f);
     plan.width = readRangedFloatProperty(*object, "width", 0.0f, 2.0f);
     plan.outputGain = readRangedFloatProperty(*object, "outputGain", -24.0f, 12.0f);
     plan.mix = readRangedFloatProperty(*object, "mix", 0.0f, 1.0f);

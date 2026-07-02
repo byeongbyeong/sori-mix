@@ -8,6 +8,11 @@ constexpr auto midGainID = "midGain";
 constexpr auto midFreqID = "midFreq";
 constexpr auto highGainID = "highGain";
 constexpr auto compAmountID = "compAmount";
+constexpr auto compMakeupID = "compMakeup";
+constexpr auto deEssAmountID = "deEssAmount";
+constexpr auto resonanceAmountID = "resonanceAmount";
+constexpr auto resonanceFreqID = "resonanceFreq";
+constexpr auto satDriveID = "satDrive";
 constexpr auto widthID = "width";
 constexpr auto outputGainID = "outputGain";
 constexpr auto mixID = "mix";
@@ -135,6 +140,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout SoriMixAudioProcessor::creat
             stageChoices, static_cast<int>(i)));
     }
 
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(deEssAmountID, versionHint++), "DeEss Amount",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.22f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(resonanceAmountID, versionHint++), "Res EQ Amount",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.18f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(resonanceFreqID, versionHint++), "Res EQ Target",
+        juce::NormalisableRange<float>(250.0f, 4500.0f, 1.0f, 0.45f), 900.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(compMakeupID, versionHint++), "Comp Makeup",
+        juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(parameterID(satDriveID, versionHint++), "Sat Drive",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.18f));
+
     return { params.begin(), params.end() };
 }
 
@@ -155,14 +171,15 @@ void SoriMixAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
                                readParameter(parameters, highGainID));
     resonanceEqModule.prepare(spec);
     resonanceEqModule.update(currentSampleRate,
-                             juce::jmin(0.0f, readParameter(parameters, midGainID)),
-                             readParameter(parameters, midFreqID));
+                             -12.0f * readParameter(parameters, resonanceAmountID),
+                             readParameter(parameters, resonanceFreqID));
     deEsserModule.prepare(sampleRate, getTotalNumOutputChannels());
-    deEsserModule.setAmountImmediate(juce::jlimit(0.0f, 1.0f, readParameter(parameters, highGainID) / 12.0f));
+    deEsserModule.setAmountImmediate(readParameter(parameters, deEssAmountID));
     glueModule.prepare(sampleRate);
     glueModule.setAmountImmediate(readParameter(parameters, compAmountID));
+    glueModule.setMakeupImmediate(readParameter(parameters, compMakeupID));
     saturationModule.prepare(sampleRate);
-    saturationModule.setAmountImmediate(juce::jlimit(0.0f, 1.0f, readParameter(parameters, mixID)));
+    saturationModule.setAmountImmediate(readParameter(parameters, satDriveID));
     widthModule.prepare(sampleRate);
     widthModule.setWidthImmediate(readParameter(parameters, widthID));
     outputGain.prepare(spec);
@@ -247,13 +264,13 @@ void SoriMixAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     const auto inputRms = buffer.getRMSLevel(0, 0, buffer.getNumSamples());
     inputLevelDb.store(levelToDb(inputRms));
 
-    const auto deEsserAmount = juce::jlimit(0.0f, 1.0f, readParameter(parameters, highGainID) / 12.0f);
-    deEsserModule.setAmount(deEsserAmount);
+    deEsserModule.setAmount(readParameter(parameters, deEssAmountID));
     resonanceEqModule.update(currentSampleRate,
-                             juce::jmin(0.0f, readParameter(parameters, midGainID)),
-                             readParameter(parameters, midFreqID));
+                             -12.0f * readParameter(parameters, resonanceAmountID),
+                             readParameter(parameters, resonanceFreqID));
     glueModule.setAmount(readParameter(parameters, compAmountID));
-    saturationModule.setAmount(juce::jlimit(0.0f, 1.0f, readParameter(parameters, mixID)));
+    glueModule.setMakeup(readParameter(parameters, compMakeupID));
+    saturationModule.setAmount(readParameter(parameters, satDriveID));
     widthModule.setWidth(readParameter(parameters, widthID));
     mixSmoothed.setTargetValue(readParameter(parameters, mixID));
     compareWetSmoothed.setTargetValue(readParameter(parameters, compareBeforeID) > 0.5f ? 0.0f : 1.0f);
@@ -472,12 +489,14 @@ void SoriMixAudioProcessor::applyAssistantCommand(const juce::String& command)
         setParameterValue(midGainID, -0.8f);
         setParameterValue(highGainID, -0.5f);
         setParameterValue(compAmountID, 0.22f);
+        setParameterValue(satDriveID, 0.22f);
     }
     else if (text.contains("bright") || text.contains("air") || text.contains("선명"))
     {
         setParameterValue(lowGainID, -0.8f);
         setParameterValue(midGainID, 0.4f);
         setParameterValue(highGainID, 2.8f);
+        setParameterValue(deEssAmountID, 0.28f);
         setParameterValue(widthID, 1.18f);
     }
     else if (text.contains("punch") || text.contains("펀치"))
@@ -486,6 +505,7 @@ void SoriMixAudioProcessor::applyAssistantCommand(const juce::String& command)
         setParameterValue(midGainID, 1.2f);
         setParameterValue(midFreqID, 1100.0f);
         setParameterValue(compAmountID, 0.45f);
+        setParameterValue(compMakeupID, 0.8f);
     }
     else if (text.contains("wide") || text.contains("space") || text.contains("넓"))
     {
@@ -498,7 +518,10 @@ void SoriMixAudioProcessor::applyAssistantCommand(const juce::String& command)
         setParameterValue(lowGainID, -1.0f);
         setParameterValue(midGainID, -1.2f);
         setParameterValue(highGainID, 1.0f);
+        setParameterValue(deEssAmountID, 0.18f);
+        setParameterValue(resonanceAmountID, 0.22f);
         setParameterValue(compAmountID, 0.12f);
+        setParameterValue(satDriveID, 0.08f);
         setParameterValue(widthID, 1.0f);
     }
 }
@@ -513,8 +536,18 @@ void SoriMixAudioProcessor::applyAssistantPlan(const AssistantParameterPlan& pla
         setParameterValue(midFreqID, *plan.midFreq);
     if (plan.highGain.has_value())
         setParameterValue(highGainID, *plan.highGain);
+    if (plan.deEssAmount.has_value())
+        setParameterValue(deEssAmountID, *plan.deEssAmount);
+    if (plan.resonanceAmount.has_value())
+        setParameterValue(resonanceAmountID, *plan.resonanceAmount);
+    if (plan.resonanceFreq.has_value())
+        setParameterValue(resonanceFreqID, *plan.resonanceFreq);
     if (plan.compAmount.has_value())
         setParameterValue(compAmountID, *plan.compAmount);
+    if (plan.compMakeup.has_value())
+        setParameterValue(compMakeupID, *plan.compMakeup);
+    if (plan.satDrive.has_value())
+        setParameterValue(satDriveID, *plan.satDrive);
     if (plan.width.has_value())
         setParameterValue(widthID, *plan.width);
     if (plan.outputGain.has_value())

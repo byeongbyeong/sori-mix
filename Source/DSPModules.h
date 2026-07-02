@@ -89,11 +89,14 @@ public:
     void prepare(double sampleRate);
     void setAmountImmediate(float amount);
     void setAmount(float amount);
+    void setMakeupImmediate(float makeupDb);
+    void setMakeup(float makeupDb);
     float process(juce::AudioBuffer<float>& buffer);
     void skip(int numSamples);
 
 private:
     juce::SmoothedValue<float> amountSmoothed;
+    juce::SmoothedValue<float> makeupSmoothed;
     double currentSampleRate = 44100.0;
     float peakDetectorLevel = 0.0f;
     float rmsDetectorLevel = 0.0f;

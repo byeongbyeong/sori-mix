@@ -356,6 +356,7 @@ void GlueModule::prepare(double sampleRate)
 {
     currentSampleRate = sampleRate;
     amountSmoothed.reset(sampleRate, 0.02);
+    makeupSmoothed.reset(sampleRate, 0.02);
     peakDetectorLevel = 0.0f;
     rmsDetectorLevel = 0.0f;
     gainReductionEnvelope = 0.0f;
@@ -369,6 +370,16 @@ void GlueModule::setAmount(float amount)
 void GlueModule::setAmountImmediate(float amount)
 {
     amountSmoothed.setCurrentAndTargetValue(amount);
+}
+
+void GlueModule::setMakeup(float makeupDb)
+{
+    makeupSmoothed.setTargetValue(makeupDb);
+}
+
+void GlueModule::setMakeupImmediate(float makeupDb)
+{
+    makeupSmoothed.setCurrentAndTargetValue(makeupDb);
 }
 
 float GlueModule::process(juce::AudioBuffer<float>& buffer)
@@ -423,7 +434,8 @@ float GlueModule::process(juce::AudioBuffer<float>& buffer)
         gainReductionEnvelope = targetReductionDb + gainCoefficient * (gainReductionEnvelope - targetReductionDb);
 
         const auto autoMakeupDb = compAmount * 3.0f;
-        const auto gain = dbToLinear(gainReductionEnvelope + autoMakeupDb);
+        const auto userMakeupDb = makeupSmoothed.getNextValue();
+        const auto gain = dbToLinear(gainReductionEnvelope + autoMakeupDb + userMakeupDb);
         maxReduction = juce::jmin(maxReduction, gainReductionEnvelope);
 
         for (int channel = 0; channel < totalChannels; ++channel)
@@ -436,6 +448,7 @@ float GlueModule::process(juce::AudioBuffer<float>& buffer)
 void GlueModule::skip(int numSamples)
 {
     amountSmoothed.skip(numSamples);
+    makeupSmoothed.skip(numSamples);
     peakDetectorLevel = 0.0f;
     rmsDetectorLevel = 0.0f;
     gainReductionEnvelope = 0.0f;

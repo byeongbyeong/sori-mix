@@ -34,6 +34,7 @@ private:
 
     void timerCallback() override;
     void configureControl(Control& control, const juce::String& parameterID, const juce::String& title);
+    void attachControl(Control& control, const juce::String& parameterID, const juce::String& title);
     void layoutControl(Control& control, juce::Rectangle<int> bounds);
     void runAssistantCommand(const juce::String& command);
     void updateStagePage();
