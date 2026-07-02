@@ -128,9 +128,9 @@ const std::array<std::array<StageControlSpec, 8>, VocalChain::stageCount> stageC
 SoriMixAudioProcessorEditor::SoriMixAudioProcessorEditor(SoriMixAudioProcessor& p)
     : AudioProcessorEditor(&p), audioProcessor(p)
 {
-    setSize(920, 640);
+    setSize(1120, 680);
     setResizable(true, true);
-    setResizeLimits(820, 620, 1320, 860);
+    setResizeLimits(980, 640, 1440, 900);
 
     for (size_t i = 0; i < controls.size(); ++i)
     {
@@ -165,6 +165,17 @@ SoriMixAudioProcessorEditor::SoriMixAudioProcessorEditor(SoriMixAudioProcessor& 
     promptBox.setColour(juce::TextEditor::outlineColourId, outlineColour());
     promptBox.onReturnKey = [this] { runAssistantCommand(promptBox.getText()); };
     addAndMakeVisible(promptBox);
+
+    assistantPanelButton.setColour(juce::TextButton::buttonColourId, controlColour());
+    assistantPanelButton.setColour(juce::TextButton::buttonOnColourId, accentColour());
+    assistantPanelButton.setColour(juce::TextButton::textColourOffId, textColour());
+    assistantPanelButton.setColour(juce::TextButton::textColourOnId, textColour());
+    assistantPanelButton.onClick = [this] {
+        assistantPanelOpen = ! assistantPanelOpen;
+        resized();
+        repaint();
+    };
+    addAndMakeVisible(assistantPanelButton);
 
     applyButton.setColour(juce::TextButton::buttonColourId, accentColour());
     applyButton.setColour(juce::TextButton::textColourOffId, textColour());
@@ -325,6 +336,7 @@ void SoriMixAudioProcessorEditor::paint(juce::Graphics& g)
     drawMeter(g, meterArea.removeFromTop(20).translated(0.0f, 10.0f), outputMeter, juce::Colour(0xffb6d9ff));
     drawMeter(g, meterArea.removeFromTop(20).translated(0.0f, 20.0f), reductionForMeter, juce::Colour(0xffd8c4ff));
 
+    drawAssistantPanel(g, assistantPanelBounds);
     drawStageInsight(g, stageInsightBounds);
 
     g.setColour(outlineColour());
@@ -336,6 +348,11 @@ void SoriMixAudioProcessorEditor::resized()
     auto area = getLocalBounds().reduced(margin + 18);
     area.removeFromTop(82);
 
+    const auto assistantWidth = assistantPanelOpen ? juce::jlimit(280, 330, getWidth() / 3) : 42;
+    auto assistantArea = area.removeFromRight(assistantWidth);
+    area.removeFromRight(12);
+    layoutAssistantPanel(assistantArea);
+
     auto stageRow = area.removeFromTop(34);
     stageLabel.setBounds(stageRow.removeFromLeft(112).reduced(0, 1));
     const auto stageButtonWidth = stageRow.getWidth() / static_cast<int>(stageButtons.size());
@@ -344,38 +361,15 @@ void SoriMixAudioProcessorEditor::resized()
 
     area.removeFromTop(8);
 
-    auto promptArea = area.removeFromBottom(158);
-    auto statusArea = promptArea.removeFromBottom(26);
-    statusLabel.setBounds(statusArea);
-
-    auto credentialRow = promptArea.removeFromBottom(36);
-    deleteKeyButton.setBounds(credentialRow.removeFromRight(82).reduced(3, 3));
-    saveKeyButton.setBounds(credentialRow.removeFromRight(102).reduced(3, 3));
-    apiKeyBox.setBounds(credentialRow.removeFromRight(240).reduced(3, 3));
-    providerBox.setBounds(credentialRow.removeFromLeft(112).reduced(3, 3));
-    credentialLabel.setBounds(credentialRow.reduced(8, 0));
-
-    promptArea.removeFromBottom(8);
-    auto commandRow = promptArea.removeFromTop(38);
-    applyButton.setBounds(commandRow.removeFromRight(92));
-    commandRow.removeFromRight(10);
-    promptBox.setBounds(commandRow);
-
-    promptArea.removeFromTop(14);
-    auto quickRow = promptArea.removeFromTop(32);
-    const auto quickWidth = quickRow.getWidth() / static_cast<int>(quickButtons.size());
-    for (auto& button : quickButtons)
-        button.setBounds(quickRow.removeFromLeft(quickWidth).reduced(3, 0));
-
-    promptArea.removeFromTop(8);
-    auto moduleRow = promptArea.removeFromTop(30);
+    auto moduleRow = area.removeFromTop(30);
     stageEnableButton.setBounds(moduleRow.removeFromLeft(112).reduced(3, 0));
     compareButton.setBounds(moduleRow.removeFromLeft(92).reduced(3, 0));
     const auto slotWidth = moduleRow.getWidth() / static_cast<int>(chainSlotBoxes.size());
     for (auto& slotBox : chainSlotBoxes)
         slotBox.setBounds(moduleRow.removeFromLeft(slotWidth).reduced(2, 0));
 
-    stageInsightBounds = area.removeFromTop(96).reduced(8, 8);
+    area.removeFromTop(12);
+    stageInsightBounds = area.removeFromTop(188).reduced(8, 8);
 
     auto controlArea = area.reduced(0, 12);
     auto topRow = controlArea.removeFromTop(controlArea.getHeight() / 2);
@@ -552,6 +546,98 @@ void SoriMixAudioProcessorEditor::setAssistantControlsEnabled(bool shouldBeEnabl
         button.setEnabled(shouldBeEnabled);
 }
 
+void SoriMixAudioProcessorEditor::setAssistantPanelVisible(bool shouldBeVisible)
+{
+    promptBox.setVisible(shouldBeVisible);
+    applyButton.setVisible(shouldBeVisible);
+    providerBox.setVisible(shouldBeVisible);
+    apiKeyBox.setVisible(shouldBeVisible);
+    saveKeyButton.setVisible(shouldBeVisible);
+    deleteKeyButton.setVisible(shouldBeVisible);
+    statusLabel.setVisible(shouldBeVisible);
+    credentialLabel.setVisible(shouldBeVisible);
+
+    for (auto& button : quickButtons)
+        button.setVisible(shouldBeVisible);
+}
+
+void SoriMixAudioProcessorEditor::layoutAssistantPanel(juce::Rectangle<int> bounds)
+{
+    assistantPanelBounds = bounds;
+    assistantPanelButton.setButtonText(assistantPanelOpen ? "AI <" : "AI");
+
+    if (! assistantPanelOpen)
+    {
+        assistantPanelButton.setBounds(bounds.reduced(3, 6));
+        setAssistantPanelVisible(false);
+        return;
+    }
+
+    setAssistantPanelVisible(true);
+    auto panel = bounds.reduced(14);
+    assistantPanelButton.setBounds(panel.removeFromTop(34));
+    panel.removeFromTop(12);
+
+    statusLabel.setBounds(panel.removeFromBottom(46));
+    panel.removeFromBottom(8);
+
+    credentialLabel.setBounds(panel.removeFromBottom(34));
+    auto keyRow = panel.removeFromBottom(72);
+    auto keyButtons = keyRow.removeFromBottom(32);
+    deleteKeyButton.setBounds(keyButtons.removeFromRight(82).reduced(2));
+    saveKeyButton.setBounds(keyButtons.removeFromRight(94).reduced(2));
+    apiKeyBox.setBounds(keyRow.reduced(2));
+
+    panel.removeFromBottom(10);
+    auto providerRow = panel.removeFromBottom(34);
+    providerBox.setBounds(providerRow.reduced(2));
+
+    panel.removeFromBottom(12);
+    auto quickArea = panel.removeFromBottom(74);
+    auto quickTop = quickArea.removeFromTop(34);
+    quickArea.removeFromTop(6);
+    auto quickBottom = quickArea.removeFromTop(34);
+    for (size_t i = 0; i < quickButtons.size(); ++i)
+    {
+        const auto row = i < 3 ? quickTop : quickBottom;
+        const auto column = static_cast<int>(i % 3);
+        const auto buttonWidth = row.getWidth() / 3;
+        quickButtons[i].setBounds(row.withTrimmedLeft(buttonWidth * column)
+                                     .withWidth(buttonWidth)
+                                     .reduced(3, 2));
+    }
+
+    panel.removeFromBottom(12);
+    auto promptArea = panel;
+    auto commandRow = promptArea.removeFromBottom(38);
+    applyButton.setBounds(commandRow.removeFromRight(82).reduced(2));
+    promptBox.setBounds(promptArea.reduced(2));
+}
+
+void SoriMixAudioProcessorEditor::drawAssistantPanel(juce::Graphics& g, juce::Rectangle<int> bounds)
+{
+    if (bounds.isEmpty())
+        return;
+
+    const auto panel = bounds.toFloat();
+    g.setColour(assistantPanelOpen ? juce::Colour(0xfffff7f1) : juce::Colour(0xffffefe4));
+    g.fillRoundedRectangle(panel, 8.0f);
+    g.setColour(outlineColour());
+    g.drawRoundedRectangle(panel, 8.0f, 1.0f);
+
+    if (! assistantPanelOpen)
+        return;
+
+    auto textArea = bounds.reduced(16).removeFromTop(88).translated(0, 44);
+    g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
+    g.setColour(textColour());
+    g.drawText("Stage assistant", textArea.removeFromTop(24), juce::Justification::centredLeft);
+    g.setFont(juce::FontOptions(12.0f));
+    g.setColour(mutedTextColour());
+    g.drawFittedText("Prompt the selected module while keeping monitoring visible.", textArea,
+                     juce::Justification::topLeft, 2);
+}
+
 float SoriMixAudioProcessorEditor::readParameterValue(const juce::String& parameterID, float fallback) const
 {
     if (auto* value = audioProcessor.getState().getRawParameterValue(parameterID))
@@ -614,21 +700,24 @@ void SoriMixAudioProcessorEditor::drawCompressorInsight(juce::Graphics& g, juce:
     g.setColour(outlineColour());
     g.drawRoundedRectangle(bounds, 8.0f, 1.0f);
 
-    auto content = bounds.reduced(14.0f, 10.0f);
-    auto graph = content.removeFromLeft(250.0f);
-    content.removeFromLeft(18.0f);
+    auto content = bounds.reduced(16.0f, 12.0f);
+    auto graph = content.removeFromLeft(content.getWidth() * 0.46f);
+    content.removeFromLeft(20.0f);
+    auto motion = content.removeFromTop(content.getHeight() * 0.58f);
+    content.removeFromTop(10.0f);
+    auto history = content;
 
-    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     g.setColour(textColour());
-    g.drawText("Compression curve", graph.removeFromTop(18.0f), juce::Justification::centredLeft);
+    g.drawText("Compression curve", graph.removeFromTop(22.0f), juce::Justification::centredLeft);
 
     auto graphBox = graph.reduced(0.0f, 2.0f);
     g.setColour(juce::Colour(0xfffffbf6));
-    g.fillRoundedRectangle(graphBox, 6.0f);
+    g.fillRoundedRectangle(graphBox, 8.0f);
     g.setColour(outlineColour().withAlpha(0.72f));
-    g.drawRoundedRectangle(graphBox, 6.0f, 1.0f);
+    g.drawRoundedRectangle(graphBox, 8.0f, 1.0f);
 
-    const auto plot = graphBox.reduced(12.0f, 9.0f);
+    const auto plot = graphBox.reduced(14.0f, 12.0f);
     auto mapX = [plot](float db) {
         return juce::jmap(db, -48.0f, 0.0f, plot.getX(), plot.getRight());
     };
@@ -636,10 +725,19 @@ void SoriMixAudioProcessorEditor::drawCompressorInsight(juce::Graphics& g, juce:
         return juce::jmap(db, -48.0f, 0.0f, plot.getBottom(), plot.getY());
     };
 
+    for (int i = 1; i < 4; ++i)
+    {
+        const auto x = plot.getX() + plot.getWidth() * static_cast<float>(i) / 4.0f;
+        const auto y = plot.getY() + plot.getHeight() * static_cast<float>(i) / 4.0f;
+        g.setColour(outlineColour().withAlpha(0.35f));
+        g.drawVerticalLine(static_cast<int>(x), plot.getY(), plot.getBottom());
+        g.drawHorizontalLine(static_cast<int>(y), plot.getX(), plot.getRight());
+    }
+
     juce::Path dryLine;
     dryLine.startNewSubPath(mapX(-48.0f), mapY(-48.0f));
     dryLine.lineTo(mapX(0.0f), mapY(0.0f));
-    g.setColour(outlineColour());
+    g.setColour(outlineColour().withAlpha(0.9f));
     g.strokePath(dryLine, juce::PathStrokeType(1.0f));
 
     juce::Path curve;
@@ -656,46 +754,76 @@ void SoriMixAudioProcessorEditor::drawCompressorInsight(juce::Graphics& g, juce:
             curve.lineTo(x, y);
     }
 
+    juce::Path curveShadow = curve;
+    curveShadow.applyTransform(juce::AffineTransform::translation(0.0f, 3.0f));
+    g.setColour(colour.withAlpha(0.22f));
+    g.strokePath(curveShadow, juce::PathStrokeType(5.0f));
     g.setColour(colour);
-    g.strokePath(curve, juce::PathStrokeType(2.4f));
+    g.strokePath(curve, juce::PathStrokeType(3.0f));
 
     auto drawBar = [&g, colour](juce::Rectangle<float> row,
                                 const juce::String& label,
                                 float normalised,
                                 const juce::String& valueText) {
-        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
         g.setColour(juce::Colour(0xff5b463d));
-        g.drawText(label, row.removeFromLeft(70.0f), juce::Justification::centredLeft);
+        g.drawText(label, row.removeFromLeft(78.0f), juce::Justification::centredLeft);
 
-        auto valueArea = row.removeFromRight(72.0f);
-        auto bar = row.reduced(0.0f, 3.0f);
+        auto valueArea = row.removeFromRight(76.0f);
+        auto bar = row.reduced(0.0f, 5.0f);
         g.setColour(juce::Colour(0xffffeadf));
-        g.fillRoundedRectangle(bar, 4.0f);
+        g.fillRoundedRectangle(bar, 5.0f);
+        g.setColour(juce::Colour(0xfffffbf6).withAlpha(0.58f));
+        g.fillRoundedRectangle(bar.reduced(0.0f, 1.0f), 4.0f);
         g.setColour(colour.withAlpha(0.88f));
-        g.fillRoundedRectangle(bar.withWidth(bar.getWidth() * juce::jlimit(0.0f, 1.0f, normalised)), 4.0f);
+        g.fillRoundedRectangle(bar.withWidth(bar.getWidth() * juce::jlimit(0.0f, 1.0f, normalised)), 5.0f);
         g.setColour(juce::Colour(0xff9f8175));
         g.drawText(valueText, valueArea, juce::Justification::centredRight);
     };
 
-    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
     g.setColour(textColour());
-    g.drawText("Motion", content.removeFromTop(16.0f), juce::Justification::centredLeft);
+    g.drawText("Motion", motion.removeFromTop(22.0f), juce::Justification::centredLeft);
 
-    drawBar(content.removeFromTop(12.0f), "Attack",
+    drawBar(motion.removeFromTop(22.0f), "Attack",
             juce::jmap(attack, 0.5f, 80.0f, 0.0f, 1.0f),
             juce::String(attack, 1) + " ms");
-    drawBar(content.removeFromTop(12.0f), "Release",
+    drawBar(motion.removeFromTop(22.0f), "Release",
             juce::jmap(release, 20.0f, 800.0f, 0.0f, 1.0f),
             juce::String(release, 0) + " ms");
-    drawBar(content.removeFromTop(12.0f), "Knee",
+    drawBar(motion.removeFromTop(22.0f), "Knee",
             knee / 24.0f,
             juce::String(knee, 1) + " dB");
-    drawBar(content.removeFromTop(12.0f), "Range",
+    drawBar(motion.removeFromTop(22.0f), "Range",
             juce::jmap(range, 1.0f, 18.0f, 0.0f, 1.0f),
             juce::String(range, 1) + " dB");
-    drawBar(content.removeFromTop(12.0f), "Live GR",
-            reduction / 18.0f,
-            juce::String(reduction, 1) + " dB");
+
+    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    g.setColour(textColour());
+    g.drawText("Gain reduction flow", history.removeFromTop(22.0f), juce::Justification::centredLeft);
+
+    auto historyBox = history.reduced(0.0f, 2.0f);
+    g.setColour(juce::Colour(0xfffffbf6));
+    g.fillRoundedRectangle(historyBox, 8.0f);
+    g.setColour(outlineColour().withAlpha(0.72f));
+    g.drawRoundedRectangle(historyBox, 8.0f, 1.0f);
+
+    auto bars = historyBox.reduced(10.0f, 8.0f);
+    const auto barWidth = bars.getWidth() / static_cast<float>(reductionHistory.size());
+    for (size_t i = 0; i < reductionHistory.size(); ++i)
+    {
+        const auto historyIndex = (reductionHistoryIndex + i) % reductionHistory.size();
+        const auto value = juce::jlimit(0.0f, 1.0f, reductionHistory[historyIndex] / 18.0f);
+        const auto x = bars.getX() + static_cast<float>(i) * barWidth;
+        const auto h = bars.getHeight() * value;
+        g.setColour(colour.withAlpha(0.18f + value * 0.62f));
+        g.fillRoundedRectangle(juce::Rectangle<float>(x, bars.getBottom() - h, juce::jmax(1.0f, barWidth - 1.0f), h), 2.0f);
+    }
+
+    g.setColour(mutedTextColour());
+    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.drawText("Live GR " + juce::String(reduction, 1) + " dB", historyBox.reduced(10.0f, 4.0f),
+               juce::Justification::topRight);
 }
 
 void SoriMixAudioProcessorEditor::timerCallback()
@@ -703,6 +831,8 @@ void SoriMixAudioProcessorEditor::timerCallback()
     inputMeter = audioProcessor.inputLevelDb.load();
     outputMeter = audioProcessor.outputLevelDb.load();
     reductionMeter = audioProcessor.gainReductionDb.load();
+    reductionHistory[reductionHistoryIndex] = juce::jlimit(0.0f, 18.0f, std::abs(reductionMeter));
+    reductionHistoryIndex = (reductionHistoryIndex + 1) % reductionHistory.size();
     repaint();
 }
 

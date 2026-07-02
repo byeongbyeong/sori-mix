@@ -152,13 +152,11 @@ The UI is organized around the selected vocal stage. It includes:
 - Stage on/off control.
 - Whole-chain before/after compare.
 - Chain slot controls for custom ordering.
-- Compressor stage visual feedback for curve shape, attack/release motion, range, and live gain reduction.
-- Prompt box and quick command buttons.
-- OpenAI/Groq provider selector.
-- API key save/delete controls.
+- Expanded Compressor monitoring with a larger curve display, attack/release/knee/range motion bars, and live gain-reduction history.
+- Right-side assistant expansion panel with prompt input, quick commands, OpenAI/Groq provider selection, API key controls, and status feedback.
 - Input, output, and gain reduction meters.
 
-The design direction is a clean, stage-based vocal workflow rather than one dense all-in-one control panel.
+The design direction is a clean, stage-based vocal workflow rather than one dense all-in-one control panel. The main area stays focused on sound-shaping and monitoring, while the assistant lives in a right-side panel that can collapse when the user wants more workspace.
 
 ## AI Assistant Layer
 

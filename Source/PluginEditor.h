@@ -44,6 +44,9 @@ private:
     void deleteApiKey();
     void refreshCredentialStatus();
     void setAssistantControlsEnabled(bool shouldBeEnabled);
+    void layoutAssistantPanel(juce::Rectangle<int> bounds);
+    void setAssistantPanelVisible(bool shouldBeVisible);
+    void drawAssistantPanel(juce::Graphics& g, juce::Rectangle<int> bounds);
     float readParameterValue(const juce::String& parameterID, float fallback = 0.0f) const;
     void drawStageInsight(juce::Graphics& g, juce::Rectangle<int> bounds);
     void drawCompressorInsight(juce::Graphics& g, juce::Rectangle<float> bounds);
@@ -57,6 +60,7 @@ private:
     std::array<juce::TextButton, VocalChain::stageCount> stageButtons;
     juce::Label stageLabel;
     juce::TextEditor promptBox;
+    juce::TextButton assistantPanelButton { "AI" };
     juce::TextButton applyButton { "Apply" };
     juce::ComboBox providerBox;
     juce::TextEditor apiKeyBox;
@@ -75,11 +79,15 @@ private:
     juce::Label outputMeterLabel;
     juce::Label reductionMeterLabel;
     juce::Rectangle<int> stageInsightBounds;
+    juce::Rectangle<int> assistantPanelBounds;
 
     float inputMeter = -90.0f;
     float outputMeter = -90.0f;
     float reductionMeter = 0.0f;
+    std::array<float, 96> reductionHistory {};
+    size_t reductionHistoryIndex = 0;
     size_t selectedStageIndex = 2;
+    bool assistantPanelOpen = true;
     std::atomic<bool> assistantRequestInFlight { false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoriMixAudioProcessorEditor)
