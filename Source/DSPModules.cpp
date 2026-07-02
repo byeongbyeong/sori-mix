@@ -357,6 +357,14 @@ void GlueModule::prepare(double sampleRate)
     currentSampleRate = sampleRate;
     amountSmoothed.reset(sampleRate, 0.02);
     makeupSmoothed.reset(sampleRate, 0.02);
+    attackSmoothed.reset(sampleRate, 0.02);
+    releaseSmoothed.reset(sampleRate, 0.02);
+    kneeSmoothed.reset(sampleRate, 0.02);
+    rangeSmoothed.reset(sampleRate, 0.02);
+    attackSmoothed.setCurrentAndTargetValue(12.0f);
+    releaseSmoothed.setCurrentAndTargetValue(180.0f);
+    kneeSmoothed.setCurrentAndTargetValue(8.0f);
+    rangeSmoothed.setCurrentAndTargetValue(10.0f);
     peakDetectorLevel = 0.0f;
     rmsDetectorLevel = 0.0f;
     gainReductionEnvelope = 0.0f;
@@ -382,6 +390,30 @@ void GlueModule::setMakeupImmediate(float makeupDb)
     makeupSmoothed.setCurrentAndTargetValue(makeupDb);
 }
 
+void GlueModule::setTiming(float attackMs, float releaseMs)
+{
+    attackSmoothed.setTargetValue(attackMs);
+    releaseSmoothed.setTargetValue(releaseMs);
+}
+
+void GlueModule::setTimingImmediate(float attackMs, float releaseMs)
+{
+    attackSmoothed.setCurrentAndTargetValue(attackMs);
+    releaseSmoothed.setCurrentAndTargetValue(releaseMs);
+}
+
+void GlueModule::setCurve(float kneeDb, float rangeDb)
+{
+    kneeSmoothed.setTargetValue(kneeDb);
+    rangeSmoothed.setTargetValue(rangeDb);
+}
+
+void GlueModule::setCurveImmediate(float kneeDb, float rangeDb)
+{
+    kneeSmoothed.setCurrentAndTargetValue(kneeDb);
+    rangeSmoothed.setCurrentAndTargetValue(rangeDb);
+}
+
 float GlueModule::process(juce::AudioBuffer<float>& buffer)
 {
     auto maxReduction = 0.0f;
@@ -390,19 +422,21 @@ float GlueModule::process(juce::AudioBuffer<float>& buffer)
     for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
     {
         const auto compAmount = amountSmoothed.getNextValue();
+        const auto attackMs = attackSmoothed.getNextValue();
+        const auto releaseMs = releaseSmoothed.getNextValue();
+        const auto kneeDb = kneeSmoothed.getNextValue();
+        const auto rangeDb = rangeSmoothed.getNextValue();
         const auto threshold = juce::jmap(compAmount, 0.0f, 1.0f, -8.0f, -32.0f);
         const auto ratio = juce::jmap(compAmount, 0.0f, 1.0f, 1.0f, 4.8f);
-        const auto kneeDb = juce::jmap(compAmount, 0.0f, 1.0f, 5.0f, 13.0f);
-        const auto rangeDb = juce::jmap(compAmount, 0.0f, 1.0f, 2.0f, 12.0f);
-        const auto peakAttackMs = juce::jmap(compAmount, 0.0f, 1.0f, 8.0f, 1.5f);
-        const auto peakReleaseMs = juce::jmap(compAmount, 0.0f, 1.0f, 70.0f, 115.0f);
-        const auto rmsAttackMs = juce::jmap(compAmount, 0.0f, 1.0f, 32.0f, 14.0f);
-        const auto rmsReleaseMs = juce::jmap(compAmount, 0.0f, 1.0f, 180.0f, 360.0f);
+        const auto peakAttackMs = attackMs;
+        const auto peakReleaseMs = releaseMs * 0.55f;
+        const auto rmsAttackMs = attackMs * 2.8f;
+        const auto rmsReleaseMs = releaseMs * 1.35f;
         const auto peakAttack = timeConstantCoefficient(currentSampleRate, peakAttackMs);
         const auto peakRelease = timeConstantCoefficient(currentSampleRate, peakReleaseMs);
         const auto rmsAttack = timeConstantCoefficient(currentSampleRate, rmsAttackMs);
         const auto rmsRelease = timeConstantCoefficient(currentSampleRate, rmsReleaseMs);
-        const auto gainAttack = timeConstantCoefficient(currentSampleRate, juce::jmap(compAmount, 0.0f, 1.0f, 18.0f, 4.5f));
+        const auto gainAttack = timeConstantCoefficient(currentSampleRate, attackMs);
 
         auto peak = 0.0f;
         auto sumSquares = 0.0f;
@@ -428,7 +462,7 @@ float GlueModule::process(juce::AudioBuffer<float>& buffer)
         targetReductionDb = juce::jmax(targetReductionDb, -rangeDb);
 
         const auto releaseDepth = juce::jlimit(0.0f, 1.0f, std::abs(gainReductionEnvelope) / juce::jmax(1.0f, rangeDb));
-        const auto programReleaseMs = juce::jmap(releaseDepth, 0.0f, 1.0f, 90.0f, 520.0f);
+        const auto programReleaseMs = releaseMs * juce::jmap(releaseDepth, 0.0f, 1.0f, 0.72f, 1.85f);
         const auto gainRelease = timeConstantCoefficient(currentSampleRate, programReleaseMs);
         const auto gainCoefficient = targetReductionDb < gainReductionEnvelope ? gainAttack : gainRelease;
         gainReductionEnvelope = targetReductionDb + gainCoefficient * (gainReductionEnvelope - targetReductionDb);
@@ -449,6 +483,10 @@ void GlueModule::skip(int numSamples)
 {
     amountSmoothed.skip(numSamples);
     makeupSmoothed.skip(numSamples);
+    attackSmoothed.skip(numSamples);
+    releaseSmoothed.skip(numSamples);
+    kneeSmoothed.skip(numSamples);
+    rangeSmoothed.skip(numSamples);
     peakDetectorLevel = 0.0f;
     rmsDetectorLevel = 0.0f;
     gainReductionEnvelope = 0.0f;

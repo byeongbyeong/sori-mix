@@ -15,6 +15,10 @@ struct AssistantParameterPlan
     std::optional<float> resonanceFreq;
     std::optional<float> compAmount;
     std::optional<float> compMakeup;
+    std::optional<float> compAttack;
+    std::optional<float> compRelease;
+    std::optional<float> compKnee;
+    std::optional<float> compRange;
     std::optional<float> satDrive;
     std::optional<float> width;
     std::optional<float> outputGain;

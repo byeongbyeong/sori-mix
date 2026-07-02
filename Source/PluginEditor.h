@@ -44,6 +44,10 @@ private:
     void deleteApiKey();
     void refreshCredentialStatus();
     void setAssistantControlsEnabled(bool shouldBeEnabled);
+    float readParameterValue(const juce::String& parameterID, float fallback = 0.0f) const;
+    void drawStageInsight(juce::Graphics& g, juce::Rectangle<int> bounds);
+    void drawCompressorInsight(juce::Graphics& g, juce::Rectangle<float> bounds);
+    static float compressorCurveReduction(float inputDb, float amount, float kneeDb, float rangeDb);
     static void drawMeter(juce::Graphics& g, juce::Rectangle<float> bounds, float valueDb, juce::Colour colour);
     static juce::Colour stageColour(size_t index);
 
@@ -70,6 +74,7 @@ private:
     juce::Label inputMeterLabel;
     juce::Label outputMeterLabel;
     juce::Label reductionMeterLabel;
+    juce::Rectangle<int> stageInsightBounds;
 
     float inputMeter = -90.0f;
     float outputMeter = -90.0f;

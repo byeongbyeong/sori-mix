@@ -13,6 +13,10 @@ constexpr auto midFreqID = "midFreq";
 constexpr auto highGainID = "highGain";
 constexpr auto compAmountID = "compAmount";
 constexpr auto compMakeupID = "compMakeup";
+constexpr auto compAttackID = "compAttack";
+constexpr auto compReleaseID = "compRelease";
+constexpr auto compKneeID = "compKnee";
+constexpr auto compRangeID = "compRange";
 constexpr auto deEssAmountID = "deEssAmount";
 constexpr auto resonanceAmountID = "resonanceAmount";
 constexpr auto resonanceFreqID = "resonanceFreq";
@@ -80,11 +84,11 @@ const std::array<std::array<StageControlSpec, 8>, VocalChain::stageCount> stageC
     }},
     std::array<StageControlSpec, 8> {{
         { compAmountID, "Leveling" },
+        { compAttackID, "Attack" },
+        { compReleaseID, "Release" },
+        { compKneeID, "Knee" },
+        { compRangeID, "Range" },
         { compMakeupID, "Makeup" },
-        { nullptr, nullptr },
-        { nullptr, nullptr },
-        { nullptr, nullptr },
-        { nullptr, nullptr },
         { nullptr, nullptr },
         { mixID, "Global Mix" },
     }},
@@ -124,9 +128,9 @@ const std::array<std::array<StageControlSpec, 8>, VocalChain::stageCount> stageC
 SoriMixAudioProcessorEditor::SoriMixAudioProcessorEditor(SoriMixAudioProcessor& p)
     : AudioProcessorEditor(&p), audioProcessor(p)
 {
-    setSize(820, 520);
+    setSize(920, 640);
     setResizable(true, true);
-    setResizeLimits(680, 440, 1280, 820);
+    setResizeLimits(820, 620, 1320, 860);
 
     for (size_t i = 0; i < controls.size(); ++i)
     {
@@ -321,6 +325,8 @@ void SoriMixAudioProcessorEditor::paint(juce::Graphics& g)
     drawMeter(g, meterArea.removeFromTop(20).translated(0.0f, 10.0f), outputMeter, juce::Colour(0xffb6d9ff));
     drawMeter(g, meterArea.removeFromTop(20).translated(0.0f, 20.0f), reductionForMeter, juce::Colour(0xffd8c4ff));
 
+    drawStageInsight(g, stageInsightBounds);
+
     g.setColour(outlineColour());
     g.drawRoundedRectangle(area, 8.0f, 1.0f);
 }
@@ -368,6 +374,8 @@ void SoriMixAudioProcessorEditor::resized()
     const auto slotWidth = moduleRow.getWidth() / static_cast<int>(chainSlotBoxes.size());
     for (auto& slotBox : chainSlotBoxes)
         slotBox.setBounds(moduleRow.removeFromLeft(slotWidth).reduced(2, 0));
+
+    stageInsightBounds = area.removeFromTop(96).reduced(8, 8);
 
     auto controlArea = area.reduced(0, 12);
     auto topRow = controlArea.removeFromTop(controlArea.getHeight() / 2);
@@ -542,6 +550,152 @@ void SoriMixAudioProcessorEditor::setAssistantControlsEnabled(bool shouldBeEnabl
 
     for (auto& button : quickButtons)
         button.setEnabled(shouldBeEnabled);
+}
+
+float SoriMixAudioProcessorEditor::readParameterValue(const juce::String& parameterID, float fallback) const
+{
+    if (auto* value = audioProcessor.getState().getRawParameterValue(parameterID))
+        return value->load();
+
+    return fallback;
+}
+
+float SoriMixAudioProcessorEditor::compressorCurveReduction(float inputDb,
+                                                            float amount,
+                                                            float kneeDb,
+                                                            float rangeDb)
+{
+    const auto thresholdDb = juce::jmap(amount, 0.0f, 1.0f, -8.0f, -32.0f);
+    const auto ratio = juce::jmap(amount, 0.0f, 1.0f, 1.0f, 4.8f);
+    const auto overDb = inputDb - thresholdDb;
+    const auto ratioCurve = (1.0f / ratio) - 1.0f;
+
+    auto reduction = 0.0f;
+    if (kneeDb <= 0.0f)
+    {
+        reduction = overDb > 0.0f ? ratioCurve * overDb : 0.0f;
+    }
+    else
+    {
+        const auto halfKnee = kneeDb * 0.5f;
+        if (overDb >= halfKnee)
+            reduction = ratioCurve * overDb;
+        else if (overDb > -halfKnee)
+        {
+            const auto kneePosition = overDb + halfKnee;
+            reduction = ratioCurve * kneePosition * kneePosition / (2.0f * kneeDb);
+        }
+    }
+
+    return juce::jmax(reduction, -rangeDb);
+}
+
+void SoriMixAudioProcessorEditor::drawStageInsight(juce::Graphics& g, juce::Rectangle<int> bounds)
+{
+    if (bounds.isEmpty())
+        return;
+
+    if (VocalChain::stageInfo(selectedStageIndex).stage == VocalStage::compressor)
+        drawCompressorInsight(g, bounds.toFloat());
+}
+
+void SoriMixAudioProcessorEditor::drawCompressorInsight(juce::Graphics& g, juce::Rectangle<float> bounds)
+{
+    const auto colour = stageColour(selectedStageIndex);
+    const auto amount = readParameterValue(compAmountID, 0.15f);
+    const auto attack = readParameterValue(compAttackID, 12.0f);
+    const auto release = readParameterValue(compReleaseID, 180.0f);
+    const auto knee = readParameterValue(compKneeID, 8.0f);
+    const auto range = readParameterValue(compRangeID, 10.0f);
+    const auto reduction = juce::jlimit(0.0f, 18.0f, std::abs(reductionMeter));
+
+    g.setColour(juce::Colour(0xfffff7f1));
+    g.fillRoundedRectangle(bounds, 8.0f);
+    g.setColour(outlineColour());
+    g.drawRoundedRectangle(bounds, 8.0f, 1.0f);
+
+    auto content = bounds.reduced(14.0f, 10.0f);
+    auto graph = content.removeFromLeft(250.0f);
+    content.removeFromLeft(18.0f);
+
+    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.setColour(textColour());
+    g.drawText("Compression curve", graph.removeFromTop(18.0f), juce::Justification::centredLeft);
+
+    auto graphBox = graph.reduced(0.0f, 2.0f);
+    g.setColour(juce::Colour(0xfffffbf6));
+    g.fillRoundedRectangle(graphBox, 6.0f);
+    g.setColour(outlineColour().withAlpha(0.72f));
+    g.drawRoundedRectangle(graphBox, 6.0f, 1.0f);
+
+    const auto plot = graphBox.reduced(12.0f, 9.0f);
+    auto mapX = [plot](float db) {
+        return juce::jmap(db, -48.0f, 0.0f, plot.getX(), plot.getRight());
+    };
+    auto mapY = [plot](float db) {
+        return juce::jmap(db, -48.0f, 0.0f, plot.getBottom(), plot.getY());
+    };
+
+    juce::Path dryLine;
+    dryLine.startNewSubPath(mapX(-48.0f), mapY(-48.0f));
+    dryLine.lineTo(mapX(0.0f), mapY(0.0f));
+    g.setColour(outlineColour());
+    g.strokePath(dryLine, juce::PathStrokeType(1.0f));
+
+    juce::Path curve;
+    for (int i = 0; i <= 40; ++i)
+    {
+        const auto inputDb = juce::jmap(static_cast<float>(i), 0.0f, 40.0f, -48.0f, 0.0f);
+        const auto outputDb = inputDb + compressorCurveReduction(inputDb, amount, knee, range);
+        const auto x = mapX(inputDb);
+        const auto y = mapY(outputDb);
+
+        if (i == 0)
+            curve.startNewSubPath(x, y);
+        else
+            curve.lineTo(x, y);
+    }
+
+    g.setColour(colour);
+    g.strokePath(curve, juce::PathStrokeType(2.4f));
+
+    auto drawBar = [&g, colour](juce::Rectangle<float> row,
+                                const juce::String& label,
+                                float normalised,
+                                const juce::String& valueText) {
+        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+        g.setColour(juce::Colour(0xff5b463d));
+        g.drawText(label, row.removeFromLeft(70.0f), juce::Justification::centredLeft);
+
+        auto valueArea = row.removeFromRight(72.0f);
+        auto bar = row.reduced(0.0f, 3.0f);
+        g.setColour(juce::Colour(0xffffeadf));
+        g.fillRoundedRectangle(bar, 4.0f);
+        g.setColour(colour.withAlpha(0.88f));
+        g.fillRoundedRectangle(bar.withWidth(bar.getWidth() * juce::jlimit(0.0f, 1.0f, normalised)), 4.0f);
+        g.setColour(juce::Colour(0xff9f8175));
+        g.drawText(valueText, valueArea, juce::Justification::centredRight);
+    };
+
+    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.setColour(textColour());
+    g.drawText("Motion", content.removeFromTop(16.0f), juce::Justification::centredLeft);
+
+    drawBar(content.removeFromTop(12.0f), "Attack",
+            juce::jmap(attack, 0.5f, 80.0f, 0.0f, 1.0f),
+            juce::String(attack, 1) + " ms");
+    drawBar(content.removeFromTop(12.0f), "Release",
+            juce::jmap(release, 20.0f, 800.0f, 0.0f, 1.0f),
+            juce::String(release, 0) + " ms");
+    drawBar(content.removeFromTop(12.0f), "Knee",
+            knee / 24.0f,
+            juce::String(knee, 1) + " dB");
+    drawBar(content.removeFromTop(12.0f), "Range",
+            juce::jmap(range, 1.0f, 18.0f, 0.0f, 1.0f),
+            juce::String(range, 1) + " dB");
+    drawBar(content.removeFromTop(12.0f), "Live GR",
+            reduction / 18.0f,
+            juce::String(reduction, 1) + " dB");
 }
 
 void SoriMixAudioProcessorEditor::timerCallback()

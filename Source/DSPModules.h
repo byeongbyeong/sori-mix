@@ -91,12 +91,20 @@ public:
     void setAmount(float amount);
     void setMakeupImmediate(float makeupDb);
     void setMakeup(float makeupDb);
+    void setTimingImmediate(float attackMs, float releaseMs);
+    void setTiming(float attackMs, float releaseMs);
+    void setCurveImmediate(float kneeDb, float rangeDb);
+    void setCurve(float kneeDb, float rangeDb);
     float process(juce::AudioBuffer<float>& buffer);
     void skip(int numSamples);
 
 private:
     juce::SmoothedValue<float> amountSmoothed;
     juce::SmoothedValue<float> makeupSmoothed;
+    juce::SmoothedValue<float> attackSmoothed;
+    juce::SmoothedValue<float> releaseSmoothed;
+    juce::SmoothedValue<float> kneeSmoothed;
+    juce::SmoothedValue<float> rangeSmoothed;
     double currentSampleRate = 44100.0;
     float peakDetectorLevel = 0.0f;
     float rmsDetectorLevel = 0.0f;

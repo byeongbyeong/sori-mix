@@ -36,11 +36,14 @@ juce::String systemPrompt()
            "The user prompt may include "
            "the currently selected stage; make decisions mainly for that stage while keeping the full vocal chain in mind. "
            "Use these optional numeric fields only when helpful: deEssAmount, resonanceAmount, resonanceFreq, "
-           "compAmount, compMakeup, lowGain, midGain, midFreq, highGain, satDrive, width, outputGain, mix. "
+           "compAmount, compAttack, compRelease, compKnee, compRange, compMakeup, "
+           "lowGain, midGain, midFreq, highGain, satDrive, width, outputGain, mix. "
            "Ranges: deEssAmount/resonanceAmount/compAmount/satDrive/mix 0..1, resonanceFreq/midFreq 250..4500 Hz, "
+           "compAttack 0.5..80 ms, compRelease 20..800 ms, compKnee 0..24 dB, compRange 1..18 dB, "
            "compMakeup/lowGain/midGain/highGain -12..12 dB, width 0..2, outputGain -24..12 dB. "
            "Stage mapping: De-Esser uses deEssAmount; Resonance EQ uses resonanceAmount and resonanceFreq; "
-           "Compressor uses compAmount and compMakeup; Musical EQ uses lowGain, midGain, midFreq, and highGain; "
+           "Compressor uses compAmount, compAttack, compRelease, compKnee, compRange, and compMakeup; "
+           "Musical EQ uses lowGain, midGain, midFreq, and highGain; "
            "Saturation uses satDrive; Inflator uses width and outputGain. "
            "You may also use optional boolean fields toneEnabled, glueEnabled, widthEnabled; these map to "
            "Musical EQ, Compressor, and Inflator compatibility controls. "
@@ -142,6 +145,10 @@ bool hasParameterChange(const AssistantParameterPlan& plan)
         || plan.resonanceFreq.has_value()
         || plan.compAmount.has_value()
         || plan.compMakeup.has_value()
+        || plan.compAttack.has_value()
+        || plan.compRelease.has_value()
+        || plan.compKnee.has_value()
+        || plan.compRange.has_value()
         || plan.satDrive.has_value()
         || plan.width.has_value()
         || plan.outputGain.has_value()
@@ -208,6 +215,10 @@ AssistantClient::Result parsePlan(const juce::String& content)
     plan.resonanceFreq = readRangedFloatProperty(*object, "resonanceFreq", 250.0f, 4500.0f);
     plan.compAmount = readRangedFloatProperty(*object, "compAmount", 0.0f, 1.0f);
     plan.compMakeup = readRangedFloatProperty(*object, "compMakeup", -12.0f, 12.0f);
+    plan.compAttack = readRangedFloatProperty(*object, "compAttack", 0.5f, 80.0f);
+    plan.compRelease = readRangedFloatProperty(*object, "compRelease", 20.0f, 800.0f);
+    plan.compKnee = readRangedFloatProperty(*object, "compKnee", 0.0f, 24.0f);
+    plan.compRange = readRangedFloatProperty(*object, "compRange", 1.0f, 18.0f);
     plan.satDrive = readRangedFloatProperty(*object, "satDrive", 0.0f, 1.0f);
     plan.width = readRangedFloatProperty(*object, "width", 0.0f, 2.0f);
     plan.outputGain = readRangedFloatProperty(*object, "outputGain", -24.0f, 12.0f);

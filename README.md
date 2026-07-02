@@ -42,7 +42,7 @@ The internal JUCE target and current build artifact name are still `SoriMix`. Th
 | --- | --- | --- | --- |
 | DeEss | `DeEsserModule` | Controls sibilance and harsh consonants while preserving vocal air. | `deEssAmount`. |
 | Res EQ | `ResonanceEqModule` | Suppresses narrow resonant buildup around the selected focus area. | `resonanceAmount`, `resonanceFreq`. |
-| Comp | `GlueModule` | Vocal-first leveling, peak control, density, and frontness. | `compAmount`, `compMakeup`. |
+| Comp | `GlueModule` | Vocal-first leveling, peak control, density, frontness, and envelope shaping. | `compAmount`, `compAttack`, `compRelease`, `compKnee`, `compRange`, `compMakeup`. |
 | EQ | `ToneModule` | Musical tone shaping for body, focus, presence, and air. | `lowGain`, `midGain`, `midFreq`, `highGain`. |
 | Sat | `SaturationModule` | Adds harmonic density, warmth, and controlled edge. | `satDrive`. |
 | Inflate | `WidthModule` plus output gain | Adds perceived size, width, and final output control. | `width`, `outputGain`. |
@@ -116,6 +116,10 @@ Current public parameters:
 | `midFreq` | Mid Focus | 250 Hz to 4500 Hz | Mid EQ focus and resonance target area. |
 | `highGain` | High Gain | -12 dB to +12 dB | High/air tone shaping. |
 | `compAmount` | Glue | 0 to 1 | Compressor amount. |
+| `compAttack` | Comp Attack | 0.5 ms to 80 ms | Compressor attack time for consonant/transient behavior. |
+| `compRelease` | Comp Release | 20 ms to 800 ms | Compressor release time for recovery movement. |
+| `compKnee` | Comp Knee | 0 dB to 24 dB | Soft-knee curve width. |
+| `compRange` | Comp Range | 1 dB to 18 dB | Maximum gain reduction limit. |
 | `compMakeup` | Comp Makeup | -12 dB to +12 dB | User compressor makeup gain. |
 | `deEssAmount` | DeEss Amount | 0 to 1 | Dedicated de-esser intensity. |
 | `resonanceAmount` | Res EQ Amount | 0 to 1 | Dedicated resonance suppression amount. |
@@ -148,6 +152,7 @@ The UI is organized around the selected vocal stage. It includes:
 - Stage on/off control.
 - Whole-chain before/after compare.
 - Chain slot controls for custom ordering.
+- Compressor stage visual feedback for curve shape, attack/release motion, range, and live gain reduction.
 - Prompt box and quick command buttons.
 - OpenAI/Groq provider selector.
 - API key save/delete controls.
@@ -178,7 +183,7 @@ Current default provider models:
 - OpenAI: `gpt-4o-mini`
 - Groq: `llama-3.1-8b-instant`
 
-The assistant system prompt is stage-aware. It explains the preferred vocal chain and maps each stage to the current parameter surface. For example, a DeEss prompt should mostly affect sibilance control, while a Compressor prompt should mostly affect `compAmount`.
+The assistant system prompt is stage-aware. It explains the preferred vocal chain and maps each stage to the current parameter surface. For example, a DeEss prompt should mostly affect sibilance control, while a Compressor prompt should mostly affect `compAmount`, envelope timing, knee, range, and makeup.
 
 Current supported assistant plan fields:
 
@@ -190,6 +195,10 @@ Current supported assistant plan fields:
 - `resonanceAmount`
 - `resonanceFreq`
 - `compAmount`
+- `compAttack`
+- `compRelease`
+- `compKnee`
+- `compRange`
 - `compMakeup`
 - `satDrive`
 - `width`
@@ -355,8 +364,8 @@ scripts/
 High-priority next steps:
 
 1. Rename product-facing JUCE metadata from `SoriMix` to `Sori 1` when ready.
-2. Expand stage-specific UI controls for DeEss, Res EQ, Comp, EQ, Sat, and Inflate.
-3. Improve metering with per-stage reduction/activity feedback.
+2. Expand stage-specific UI controls for DeEss, Res EQ, EQ, Sat, and Inflate.
+3. Improve metering with per-stage reduction/activity feedback beyond the current compressor panel.
 4. Add preset save/load and factory vocal presets.
 5. Add assistant preview/confirm flow before applying larger changes.
 6. Add notarized macOS packaging and signed releases.
