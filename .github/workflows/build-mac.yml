@@ -24,8 +24,13 @@ jobs:
       - name: Package macOS preview
         run: BUILD_CONFIG=Release ./scripts/package-mac.sh
 
+      - name: Build macOS installer package
+        run: ./scripts/build-mac-pkg.sh
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Sori1-macOS-preview
-          path: dist/Sori1-macOS-preview.zip
+          path: |
+            dist/Sori1-macOS-preview.zip
+            dist/Sori1-macOS-preview.pkg

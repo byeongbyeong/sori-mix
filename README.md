@@ -258,6 +258,7 @@ Generated package:
 
 ```text
 dist/Sori1-macOS-preview.zip
+dist/Sori1-macOS-preview.pkg
 ```
 
 Package contents:
@@ -269,10 +270,17 @@ Package contents:
 - `README.txt`
 - `VERSION.txt`
 
+Installer package payload:
+
+- `/Library/Audio/Plug-Ins/Components/SoriMix.component`
+- `/Library/Audio/Plug-Ins/VST3/SoriMix.vst3`
+- `/Applications/SoriMix.app`
+
 Create a package locally after building:
 
 ```bash
 BUILD_CONFIG=Debug ./scripts/package-mac.sh
+./scripts/build-mac-pkg.sh
 ```
 
 The installer helper copies the current build to user-level macOS locations:
@@ -284,9 +292,11 @@ The installer helper copies the current build to user-level macOS locations:
 Automation:
 
 - `.github/workflows/build-mac.yml` builds Release and uploads `Sori1-macOS-preview.zip` as a workflow artifact on every push to `main`.
-- `.github/workflows/release-mac.yml` builds and packages on `v*` tags, then creates a GitHub Release with the zip attached.
+- `.github/workflows/release-mac.yml` builds and packages on `v*` tags, then creates a GitHub Release with the zip and pkg installer attached.
 - Release builds run `scripts/codesign-mac.sh` before packaging. If Apple Developer ID secrets are configured, AU, VST3, and Standalone bundles are signed with that identity. If not, the script applies ad-hoc signatures so preview builds remain installable for testing.
 - Release builds run `scripts/notarize-mac.sh` after packaging. If Apple notarization secrets are configured, the zip is submitted to Apple, accepted bundles are stapled, and the final zip is recreated.
+- Release builds run `scripts/build-mac-pkg.sh` to produce a standard macOS installer package. If a Developer ID Installer certificate is configured, the pkg is signed.
+- Release builds run `scripts/notarize-mac-pkg.sh` to notarize and staple signed installer packages.
 
 Release example:
 
@@ -302,6 +312,9 @@ Commercial macOS signing secrets:
 | `MACOS_CERTIFICATE_P12_BASE64` | Base64-encoded Developer ID Application `.p12` certificate. |
 | `MACOS_CERTIFICATE_PASSWORD` | Password for the `.p12` certificate. |
 | `MACOS_CODESIGN_IDENTITY` | Optional exact signing identity. If omitted, the workflow uses the first Developer ID Application identity in the imported certificate. |
+| `MACOS_INSTALLER_CERTIFICATE_P12_BASE64` | Base64-encoded Developer ID Installer `.p12` certificate for signing `.pkg` installers. |
+| `MACOS_INSTALLER_CERTIFICATE_PASSWORD` | Password for the installer `.p12` certificate. |
+| `MACOS_INSTALLER_SIGN_IDENTITY` | Optional exact Developer ID Installer signing identity. |
 | `MACOS_KEYCHAIN_PASSWORD` | Optional temporary CI keychain password. |
 | `APPLE_NOTARIZATION_APPLE_ID` | Apple ID used for notarization. |
 | `APPLE_NOTARIZATION_TEAM_ID` | Apple Developer Team ID. |
@@ -319,6 +332,8 @@ Local signing and notarization commands:
 BUILD_CONFIG=Release ./scripts/codesign-mac.sh
 BUILD_CONFIG=Release ./scripts/package-mac.sh
 ./scripts/notarize-mac.sh
+./scripts/build-mac-pkg.sh
+./scripts/notarize-mac-pkg.sh
 ```
 
 ## Build
