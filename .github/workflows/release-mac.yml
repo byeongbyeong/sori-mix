@@ -23,8 +23,23 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
+      - name: Sign macOS bundles
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: BUILD_CONFIG=Release ./scripts/codesign-mac.sh
+
       - name: Package macOS preview
         run: BUILD_CONFIG=Release ./scripts/package-mac.sh
+
+      - name: Notarize macOS package
+        env:
+          APPLE_NOTARIZATION_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
+          APPLE_NOTARIZATION_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
+          APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+        run: ./scripts/notarize-mac.sh
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4

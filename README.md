@@ -285,12 +285,40 @@ Automation:
 
 - `.github/workflows/build-mac.yml` builds Release and uploads `Sori1-macOS-preview.zip` as a workflow artifact on every push to `main`.
 - `.github/workflows/release-mac.yml` builds and packages on `v*` tags, then creates a GitHub Release with the zip attached.
+- Release builds run `scripts/codesign-mac.sh` before packaging. If Apple Developer ID secrets are configured, AU, VST3, and Standalone bundles are signed with that identity. If not, the script applies ad-hoc signatures so preview builds remain installable for testing.
+- Release builds run `scripts/notarize-mac.sh` after packaging. If Apple notarization secrets are configured, the zip is submitted to Apple, accepted bundles are stapled, and the final zip is recreated.
 
 Release example:
 
 ```bash
 git tag v0.1.0-preview
 git push origin v0.1.0-preview
+```
+
+Commercial macOS signing secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `MACOS_CERTIFICATE_P12_BASE64` | Base64-encoded Developer ID Application `.p12` certificate. |
+| `MACOS_CERTIFICATE_PASSWORD` | Password for the `.p12` certificate. |
+| `MACOS_CODESIGN_IDENTITY` | Optional exact signing identity. If omitted, the workflow uses the first Developer ID Application identity in the imported certificate. |
+| `MACOS_KEYCHAIN_PASSWORD` | Optional temporary CI keychain password. |
+| `APPLE_NOTARIZATION_APPLE_ID` | Apple ID used for notarization. |
+| `APPLE_NOTARIZATION_TEAM_ID` | Apple Developer Team ID. |
+| `APPLE_NOTARIZATION_PASSWORD` | App-specific password for notarization. |
+
+Create a base64 certificate value locally:
+
+```bash
+base64 -i DeveloperIDApplication.p12 | pbcopy
+```
+
+Local signing and notarization commands:
+
+```bash
+BUILD_CONFIG=Release ./scripts/codesign-mac.sh
+BUILD_CONFIG=Release ./scripts/package-mac.sh
+./scripts/notarize-mac.sh
 ```
 
 ## Build

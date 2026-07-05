@@ -70,8 +70,10 @@ Right-click "Install Sori 1.command" and choose Open.
 If your DAW blocks the plug-in
 -----------------------------
 
-This early preview is ad-hoc signed and not notarized yet. If macOS quarantine
-blocks loading, remove quarantine after you trust this build:
+Preview builds may be ad-hoc signed and not notarized. Official release builds
+are signed and notarized when the Sori LAB Apple Developer credentials are
+configured in GitHub Actions. If macOS quarantine blocks loading after you trust
+this build, remove quarantine with:
 
   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/SoriMix.component
   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/SoriMix.vst3
