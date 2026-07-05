@@ -1,14 +1,16 @@
-name: Build macOS Plugin
+name: Release macOS Package
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags:
+      - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  release:
     runs-on: macos-latest
 
     steps:
@@ -24,8 +26,18 @@ jobs:
       - name: Package macOS preview
         run: BUILD_CONFIG=Release ./scripts/package-mac.sh
 
-      - name: Upload artifacts
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: Sori1-macOS-preview
           path: dist/Sori1-macOS-preview.zip
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "dist/Sori1-macOS-preview.zip" \
+            --title "Sori 1 ${GITHUB_REF_NAME}" \
+            --notes-file "dist/Sori1-macOS-preview/README.txt"

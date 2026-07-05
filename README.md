@@ -242,12 +242,55 @@ Live site:
 https://byeongbyeong.github.io/sori-mix/
 ```
 
-The current website presents the product as `Sori LAB - Sori 1`, includes a product UI preview, explains the six-stage vocal chain, and links to GitHub Actions and Releases.
+The current website presents the product as `Sori LAB - Sori 1`, includes a product UI preview, explains the six-stage vocal chain, and links users toward packaged macOS downloads.
 
 GitHub Pages deployment is configured in:
 
 ```text
 .github/workflows/deploy-pages.yml
+```
+
+## macOS Packaging
+
+The packaging flow creates a user-facing zip instead of exposing raw build bundles.
+
+Generated package:
+
+```text
+dist/Sori1-macOS-preview.zip
+```
+
+Package contents:
+
+- `Plug-Ins/AU/SoriMix.component`
+- `Plug-Ins/VST3/SoriMix.vst3`
+- `Standalone/SoriMix.app`
+- `Install Sori 1.command`
+- `README.txt`
+- `VERSION.txt`
+
+Create a package locally after building:
+
+```bash
+BUILD_CONFIG=Debug ./scripts/package-mac.sh
+```
+
+The installer helper copies the current build to user-level macOS locations:
+
+- `~/Library/Audio/Plug-Ins/Components/SoriMix.component`
+- `~/Library/Audio/Plug-Ins/VST3/SoriMix.vst3`
+- `~/Applications/SoriMix.app`
+
+Automation:
+
+- `.github/workflows/build-mac.yml` builds Release and uploads `Sori1-macOS-preview.zip` as a workflow artifact on every push to `main`.
+- `.github/workflows/release-mac.yml` builds and packages on `v*` tags, then creates a GitHub Release with the zip attached.
+
+Release example:
+
+```bash
+git tag v0.1.0-preview
+git push origin v0.1.0-preview
 ```
 
 ## Build
@@ -366,5 +409,5 @@ High-priority next steps:
 3. Improve metering with per-stage reduction/activity feedback beyond the current compressor panel.
 4. Add preset save/load and factory vocal presets.
 5. Add assistant preview/confirm flow before applying larger changes.
-6. Add notarized macOS packaging and signed releases.
-7. Prepare commercial release documentation, changelog, license, and installer flow.
+6. Add notarization and a signed installer for commercial macOS releases.
+7. Prepare commercial release documentation, changelog, license, and purchase/license activation flow.

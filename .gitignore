@@ -5,6 +5,7 @@ tmp/
 *.xcodeproj/
 *.xcworkspace/
 DerivedData/
+dist/
 JUCE/
 *.vst3
 *.component
